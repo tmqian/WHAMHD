@@ -218,3 +218,72 @@ class SyntheticDiagnostic:
         ax.set_xlabel('time [ms]')
 
         
+    def probeSpectralAnalysis(self,t,fig=None):
+        '''
+        Make plot of data, sampling from probes, without inferring Isat or Vfloat
+        '''
+        if fig==None:
+            fig = plt.figure(figsize=(16,7))
+
+        M = self.M
+        z = self.z_idx
+        probes = self.probes
+
+        T = self.t[t]
+        Z = self.z[z]
+        R = self.R_probes 
+        time = self.t * 1e3
+        signals = self.sample_Ne
+        raw = self.Ne
+
+        gs = gridspec.GridSpec(4, 3, figure=fig)
+        ax_signal = fig.add_subplot(gs[0,:])
+        ax_plasma = fig.add_subplot(gs[1:,0])
+        ax_spectra = fig.add_subplot(gs[1:,-1])
+        ax_rad = fig.add_subplot(gs[1,1])
+        ax_amp = fig.add_subplot(gs[2,1])
+        ax_ang = fig.add_subplot(gs[3,1])
+        cool = colormap.winter(np.linspace(0, 1, M))
+
+        # space
+        fig.suptitle(f"Ne frame {t}: t = {T:.3e},  Z = {Z:.2f}, R = {R:.2f}")
+        ax_plasma.contourf(self.x*100, self.y*100, raw[t,z],20,cmap='inferno')
+        ax_plasma.set_xlabel("x [cm]")
+        ax_plasma.set_ylabel("y [cm]")
+        
+        for j in np.arange(M):
+            _,py,px = probes[j] * 100
+            ax_plasma.plot(px,py,'o', color=cool[j])
+
+            if (j % 2):
+                continue
+            ax_signal.plot(time, signals[j], color=cool[j], label=f"probe {j+1}")
+        ax_signal.axvline(time[t], ls='--', color='C2')
+        ax_signal.set_xlabel("time [ms]")
+        ax_signal.legend(loc=1, fontsize=8)
+
+        # spectral
+        m_wave = fftshift( fftfreq(M, 1/M) )
+        warm = colormap.autumn(np.linspace(0, 1, M))
+        r_axis = np.arange(M)
+        ax_rad.plot( r_axis+1, signals[:,t], 'C2o-' )
+        for j in r_axis:
+            ax_rad.plot(j+1, signals[j,t], 'o', color=cool[j])
+        ax_rad.set_xlabel("probe number")
+
+        dc = np.mean(signals,axis=0)
+        kspec = fftshift( np.transpose( [fft(s) for s in (signals-dc).T] ), axes=0 ) 
+        ax_spectra.contourf(time, m_wave, np.abs(kspec),25, cmap='hot')
+        ax_spectra.set_ylabel("wave number")
+        ax_spectra.set_xlabel('time [ms]')
+        ax_spectra.axvline(time[t], color='C2', ls='--')
+
+        ax_amp.plot(m_wave, np.abs(kspec[:,t]), 'C1o--', label='amplitude')
+        ax_ang.plot(m_wave, np.angle(kspec[:,t]), 'C3o--', label='phase')
+        ax_ang.set_xlabel("wave number")
+        ax_amp.legend(loc=1,fontsize=10)
+        ax_ang.legend(loc=1,fontsize=10)
+
+        ax_plasma.set_aspect('equal')
+        ax_spectra.set_aspect('equal')
+        fig.tight_layout()
