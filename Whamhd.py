@@ -45,18 +45,17 @@ class SyntheticDiagnostic:
         The function interperloates data on a recular grid (T,Z,Y,X)
         '''
         
-        gkyl = self
-        grid = (gkyl.t, gkyl.z, gkyl.y, gkyl.x)
-        f_Ne = RegularGridInterpolator(grid, gkyl.Ne)
-        f_Te = RegularGridInterpolator(grid, gkyl.Te)
-        f_Ti = RegularGridInterpolator(grid, gkyl.Ti)
-        f_Phi = RegularGridInterpolator(grid, gkyl.Phi)
+        grid = (self.t, self.z, self.y, self.x)
+        f_Ne = RegularGridInterpolator(grid, self.Ne)
+        f_Te = RegularGridInterpolator(grid, self.Te)
+        f_Ti = RegularGridInterpolator(grid, self.Ti)
+        f_Phi = RegularGridInterpolator(grid, self.Phi)
         
         probes = self.probes
-        self.sample_Ne = np.array( [[ f_Ne( (t,*p) ) for t in gkyl.t] for p in probes] )
-        self.sample_Te = np.array( [[ f_Te( (t,*p) ) for t in gkyl.t] for p in probes] )
-        self.sample_Ti = np.array( [[ f_Ti( (t,*p) ) for t in gkyl.t] for p in probes] )
-        self.sample_Phi = np.array( [[ f_Phi( (t,*p) ) for t in gkyl.t] for p in probes] )
+        self.sample_Ne = np.array( [[ f_Ne( (t,*p) ) for t in self.t] for p in probes] )
+        self.sample_Te = np.array( [[ f_Te( (t,*p) ) for t in self.t] for p in probes] )
+        self.sample_Ti = np.array( [[ f_Ti( (t,*p) ) for t in self.t] for p in probes] )
+        self.sample_Phi = np.array( [[ f_Phi( (t,*p) ) for t in self.t] for p in probes] )
 
         self.f_Ne  = f_Ne 
         self.f_Te  = f_Te
@@ -94,22 +93,24 @@ class SyntheticDiagnostic:
         self.Vf = phi + (Te/e) * np.log(0.6*np.sqrt(2*np.pi/mass_ratio))
 
     def GridPlot(self, t, fig=None):
+        '''
+        Make plot of data, sampling from probes, without inferring Isat or Vfloat
+        '''
         if fig==None:
             fig = plt.figure(figsize=(10,5))
         M = self.M
-        gkyl = self
         z = self.z_idx
         probes = self.probes
 
-        T = gkyl.t[t]
-        Z = gkyl.z[z]
+        T = self.t[t]
+        Z = self.z[z]
         gs = gridspec.GridSpec(M, 2, figure=fig)
         ax0 = fig.add_subplot(gs[:,0])
-        ax0.contourf(gkyl.x, gkyl.y, gkyl.Ne[t,z],20,cmap='inferno')
+        ax0.contourf(self.x, self.y, self.Ne[t,z],20,cmap='inferno')
         ax0.set_title(f"Ne: t = {T:.3e},  Z = {Z:.2f}")
         for j in np.arange(M):
             ax = fig.add_subplot(gs[j,1])
-            ax.plot(gkyl.t, self.sample_Ne[j])
+            ax.plot(self.t, self.sample_Ne[j])
             ax.axvline(T, ls='--', color='C2')
             ax.set_title("X = {:.2f}, Y = {:.2f}, Z = {:.2f}".format(*probes[j][::-1]))
         
@@ -120,20 +121,22 @@ class SyntheticDiagnostic:
         fig.tight_layout()
 
     def ProbePlot(self,t,cmap,fig=None):
+        '''
+        Make plot of data, sampling from probes, with Isat and Vfloat
+        '''
         if fig==None:
             fig = plt.figure(figsize=(10,5))
         M = self.M
-        gkyl = self
         z = self.z_idx
         probes = self.probes
 
-        T = gkyl.t[t]
-        Z = gkyl.z[z]
-        t_axis = gkyl.t * 1e3
+        T = self.t[t]
+        Z = self.z[z]
+        t_axis = self.t * 1e3
         gs = gridspec.GridSpec(M, 3, figure=fig)
     
         ax0 = fig.add_subplot(gs[:,0])
-        ax0.contourf(gkyl.x*100, gkyl.y*100, gkyl.Ne[t,z],20,cmap='inferno')
+        ax0.contourf(self.x*100, self.y*100, self.Ne[t,z],20,cmap='inferno')
         ax0.set_title(f"Ne: t = {T:.3e},  Z = {Z:.2f}")
         ax0.set_xlabel("X [cm]")
         ax0.set_ylabel("Y [cm]")
@@ -169,20 +172,17 @@ class SyntheticDiagnostic:
         fig.suptitle(f"frame {t} : t = {T:.3e}")
         fig.tight_layout()
 
-    def spectralAnalysis(self,signals):
-
-        M = len(signals)
-        R = self.R_probes
-        ds = np.pi*2*R/M
-        self.m_wave = fftfreq(M,ds) * (2*np.pi*R)
-        self.kspec = np.transpose( [fft(s) for s in signals.T] )
-
 
     def plot_kTime(self,signals):
         '''
         plot the magnitude and phase components of spatial FT as function of time
         '''
+        M = len(signals)
+        m_wave = fftfreq(M, 1/M) 
+        kspec = np.transpose( [fft(s) for s in signals.T] )
         time = self.t * 1e3
+
+        # plot
         warm = colormap.autumn(np.linspace(0, 1, M))
         fig,axs = plt.subplots(3,1, figsize=(14,6))
         for j in np.arange(M):
@@ -191,6 +191,7 @@ class SyntheticDiagnostic:
             else:
                 axs[1].plot(time, np.abs(kspec[j]), label=f"m = {m_wave[j]:.1f}", color=warm[j])
             axs[2].plot(time, np.angle(kspec[j]), label=f"m = {m_wave[j]:.1f}", color=warm[j])
+        
         axs[0].set_ylabel('magnitude')
         axs[1].set_ylabel('magnitude')
         axs[2].set_ylabel('phase')
@@ -198,18 +199,16 @@ class SyntheticDiagnostic:
         [a.legend(fontsize=8) for a in axs[:-1]]
         fig.tight_layout()
         
-        
     def contour_mt(self,signals, ax=None):
         '''
         contour plot of wavenumber evolving in time
+        removing the (m=0) DC amplitude
         '''
         if ax == None:
             fig,ax = plt.subplots(1,1)
         M = len(signals)
-        R = self.R_probes
-        ds = np.pi*2*R/M
         time = self.t * 1e3
-        m_wave = fftfreq(M,ds) * (2*np.pi*R)
+        m_wave = fftfreq(M, 1/M) 
         warm = colormap.autumn(np.linspace(0, 1, M))
 
         dc = np.mean(signals,axis=0)
