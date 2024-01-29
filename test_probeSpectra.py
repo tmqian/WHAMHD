@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 video = False
 
 # user defined path
+#    download data here: https://uwmadison.box.com/s/uuzej9m1uvh7h3vhehz9aip4hmh4ikq6
 path = "/Users/tqian/Documents/WHAM/Wham-Theory/simulation/gkeyll/2023-1005-gkyl-data"
 fin = f"{path}/32.npz"
 
