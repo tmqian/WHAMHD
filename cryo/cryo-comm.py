@@ -40,11 +40,36 @@ class CryoComm:
     def __init__(self):
         self.load()
 
-    def load(self, skip=6):
-        self.data = test_data
+    def load(self):
+
+        try:
+            print("Attempting to load data from USB connection")
+            self.get_status()
+        except:
+            print("    error")
+            print("Loading test data")
+            self.data = test_data
+
+        self.parse()
+
+    def get_status(self):
+        import usb
+        import usb.core
+        
+        usb.core.find()
+        dev = usb.core.find(idVendor=0x04d8, idProduct=0xf420)
+        stat = [0x06,0x55,0xaa,0x00,0x00,0xe5,0xb5,0xff]
+
+        x = dev.write(0x01,stat)
+        y = dev.read(0x81,64)
+
+        self.data = y
+
+
+    def parse(self, skip=6):
 
         # Extract the payload from the byte array
-        payload = test_data[skip:skip+16]
+        payload = self.data[skip:skip+16]
         
         # Helper function to read 2 bytes and convert to integer
         def read_uint16(data, index):
