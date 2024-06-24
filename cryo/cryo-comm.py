@@ -1,73 +1,101 @@
-import usb.core
-import usb.util
-import struct
-
 '''
-See section 6.3.9 in
-https://trilliumus.com/wp-content/uploads/2017/05/trillium-m600-400-helium-compressor-manual.pdf
+This code talks to the Trillium M600 compressors
+
+T. Qian - 24 June 2024
 '''
 
+from array import array
 
-# Endpoint configuration
-ENDPOINT_OUT = 0x01  # Write endpoint
-ENDPOINT_IN = 0x81  # Read endpoint
-
-# messages
-get_status = [0x06, 0x55, 0xaa, 0x00, 0x00, 0xe5, 0xb5, 0xff]
-
-# find our device
-dev = usb.core.find(idVendor=0x04d8, idProduct=0xf420)
-# usb.core.find() # use this to find devices from interactive python
-
-if dev.is_kernel_driver_active(0):
-    dev.detach_kernel_driver(0)
-
-# set active configuration
-dev.set_configuration()
-
-# Claim interface
-usb.util.claim_interface(dev, 0)
-
-## get an endpoint instance
-#cfg = dev.get_active_configuration()
-#intf = cfg[(0,0)]
-#
-#func = lambda e: \
-#        usb.util.endpoint_direction(e.bEndpointAddress) == \
-#        usb.util.ENDPOINT_OUT
-#ep = usb.util.find_descriptor(intf, custom_match=func)
+# The byte array
+test_data = array('B', [26, 85, 170, 20, 0, 10, 172, 251, 29, 0, 88, 1, 89, 95, 0, 0, 0, 0, 0, 0, 0, 0, 211, 251, 29, 0, 248, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255])
 
 
+# Descriptions for each bit in the states
+digital_output_descriptions = [
+    "Compressor Pressure Fault", "Compressor Temperature Fault", "Phase Error Fault",
+    "System Running", "Fan/Heater On", "Compressor/Solenoid On", "Coldhead On",
+    "Spare Output #1 On", "Spare Output #2 On"
+]
 
-import pdb
-pdb.set_trace()
+digital_input_descriptions = [
+    "Coldhead Enable", "Compressor/Solenoid Enable", "System Reset",
+    "Compressor Pressure Fault", "Compressor Temperature Fault", "Compressor Overload Fault",
+    "Spare Remote Input #1", "Spare Remote Input #2", "Spare Chassis Input #1"
+]
 
-# Packet header
-HEADER_1 = 0x55
-HEADER_2 = 0xAA
+button_descriptions = [
+    "On Button Pressed", "Off Button Pressed", "Menu Button Pressed",
+    "History Button Pressed"
+]
 
-# Command ID for Get Status command
-GET_STATUS_COMMAND_ID = 229
+fault_descriptions = [
+    "System Fault", "AC 220V Fuse Blown", "AC 24V Fuse Blown",
+    "Compressor Overload Fault", "AC Phase Fault", "Compressor Pressure Fault",
+    "Compressor Temperature Fault", "3 Phases Detected; 1 Phase Expected",
+    "1 Phase Detected; 3 Phases Expected"
+]
 
-def construct_packet(command_id):
-    # Construct packet in little-endian format
-    packet = struct.pack("<BBH", HEADER_1, HEADER_2, 4)  # Header and packet length (4 bytes)
-    packet += struct.pack("B", command_id)  # Command ID
-    packet += struct.pack("<I", 0)  # Payload data (none for Get Status command)
+class CryoComm:
 
-    # Calculate CRC (dummy calculation for demonstration)
-    crc = sum(packet) % 256  # Sum of all bytes modulo 256
-    packet += struct.pack("B", crc)  # Append CRC byte
+    def __init__(self):
+        self.load()
 
-    return packet
+    def load(self, skip=6):
+        self.data = test_data
 
-# Construct Get Status command packet
-get_status_packet = construct_packet(GET_STATUS_COMMAND_ID)
+        # Extract the payload from the byte array
+        payload = test_data[skip:skip+16]
+        
+        # Helper function to read 2 bytes and convert to integer
+        def read_uint16(data, index):
+            return data[index] + (data[index+1] << 8)
+        
+        # Helper function to read 4 bytes and convert to integer
+        def read_uint32(data, index):
+            return data[index] + (data[index+1] << 8) + (data[index+2] << 16) + (data[index+3] << 24)
+        
+        
+        # Parse the payload
+        self.compressor_run_time = read_uint32(payload, 0)  # 4 bytes
+        self.pcb_temperature = read_uint16(payload, 4) / 10.0  # 2 bytes, 0.1 C units
+        self.input_voltage = read_uint16(payload, 6)  # 2 bytes, mV
 
-GET_STATUS_COMMAND = b"\xE5"
-dev.write(ENDPOINT_OUT, GET_STATUS_COMMAND)
-response = dev.read(ENDPOINT_IN, 64) 
+        self.digital_output_states = read_uint16(payload, 8)  # 2 bytes, bit set
+        self.digital_input_states = read_uint16(payload, 10)  # 2 bytes, bit set
+        self.button_states = read_uint16(payload, 12)  # 2 bytes, bit set
+        self.fault_states = read_uint16(payload, 14)  # 2 bytes, bit set
 
-print(response)
-msg = b"Hello, OXI-1000!"
+    def status(self):
+
+        # Print parsed values
+        print(f"Compressor Run Time: {self.compressor_run_time/3600:.1f} hours")
+        print(f"PCB Temperature: {self.pcb_temperature} °C")
+        print(f"24V Input Voltage: {self.input_voltage/1000} V")
+
+        print(f"Digital Output States: {bin(self.digital_output_states)}")
+        print(f"Digital Input States: {bin(self.digital_input_states)}")
+        print(f"Button States: {bin(self.button_states)}")
+        print(f"Fault States: {bin(self.fault_states)}")
+
+    def states(self):
+        # Function to print the bit states
+        def print_bit_states(label, bit_states, descriptions):
+            print(f"{label}:")
+            for i in range(len(descriptions)):
+                state = "ON" if bit_states & (1 << i) else "OFF"
+                print(f"  Bit {i}: {descriptions[i]} - {state}")
+
+        # Print the bit states
+        print_bit_states("Digital Output States", self.digital_output_states, digital_output_descriptions)
+        print_bit_states("Digital Input States", self.digital_input_states, digital_input_descriptions)
+        print_bit_states("Button States", self.button_states, button_descriptions)
+        print_bit_states("Fault States", self.fault_states, fault_descriptions)
+
+
+if __name__ == "__main__":
+
+    cryo = CryoComm()
+    cryo.status()
+    #cryo.states()
+
 
