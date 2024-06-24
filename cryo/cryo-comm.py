@@ -38,9 +38,6 @@ fault_descriptions = [
 class CryoComm:
 
     def __init__(self):
-        self.load()
-
-    def load(self):
 
         try:
             print("Attempting to load data from USB connection")
@@ -50,7 +47,6 @@ class CryoComm:
             print("Loading test data")
             self.data = test_data
 
-        self.parse()
 
     def get_status(self, idx=0):
 
@@ -66,9 +62,16 @@ class CryoComm:
 
         self.data = y
         print(f"    Success! Received {y[0]} bytes")
+        self.parse()
+
+        self.dev_list = dev_list
+        self.dev = dev
+
+        # reset device handle
+        dev.reset()
 
 
-    def parse(self, skip=6):
+    def parse(self, skip=6, show=True):
 
         # Extract the payload from the byte array
         payload = self.data[skip:skip+16]
@@ -92,14 +95,17 @@ class CryoComm:
         self.button_states = read_uint16(payload, 12)  # 2 bytes, bit set
         self.fault_states = read_uint16(payload, 14)  # 2 bytes, bit set
 
+        if show:
+            self.status()
+
     def status(self):
 
         # Print parsed values
-        print(f"Compressor Run Time: {self.compressor_run_time/3600:.1f} hours")
+        print(f"\nCompressor Run Time: {self.compressor_run_time/3600:.1f} hours")
         print(f"PCB Temperature: {self.pcb_temperature} °C")
         print(f"24V Input Voltage: {self.input_voltage/1000} V")
 
-        print(f"Digital Output States: {bin(self.digital_output_states)}")
+        print(f"\nDigital Output States: {bin(self.digital_output_states)}")
         print(f"Digital Input States: {bin(self.digital_input_states)}")
         print(f"Button States: {bin(self.button_states)}")
         print(f"Fault States: {bin(self.fault_states)}")
@@ -113,7 +119,7 @@ class CryoComm:
                 print(f"  Bit {i}: {descriptions[i]} - {state}")
 
         # Print the bit states
-        print_bit_states("Digital Output States", self.digital_output_states, digital_output_descriptions)
+        print_bit_states("\nDigital Output States", self.digital_output_states, digital_output_descriptions)
         print_bit_states("Digital Input States", self.digital_input_states, digital_input_descriptions)
         print_bit_states("Button States", self.button_states, button_descriptions)
         print_bit_states("Fault States", self.fault_states, fault_descriptions)
@@ -122,7 +128,5 @@ class CryoComm:
 if __name__ == "__main__":
 
     cryo = CryoComm()
-    cryo.status()
     #cryo.states()
-
 
