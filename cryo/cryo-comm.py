@@ -46,7 +46,7 @@ class CryoComm:
             print("    error")
             print("Loading test data")
             self.data = test_data
-
+            self.parse()
 
     def get_status(self, idx=0):
 
