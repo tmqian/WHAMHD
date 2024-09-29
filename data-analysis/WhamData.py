@@ -2,6 +2,7 @@ import MDSplus as mds
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter as savgol
+import matplotlib.pyplot as pl
 
 '''
 This colletion of classes loads data from WHAM MDS+ tree
@@ -59,8 +60,11 @@ class BiasPPS:
         raw_L_VFB = tree.getNode(f"{raw}.ch_09").getData().data()
         raw_R_VFB = tree.getNode(f"{raw}.ch_10").getData().data()
 
-        #t_delay = tree.getNode(f"{raw}.delay").getData().data() # ms, positive
-        t_delay = tree.getNode(f"bias.bias_params.trig_time").getData().data() *-1e3 # ms, positive
+        # time
+        dtacq_time = tree.getNode(f"{raw}.ch_01").getData().dim_of().data() * 1e3 # ms
+        dtacq_delay = tree.getNode(f"{raw}.trig_time").getData().data() * 1e3 # ms, value -5 means dtacq starts at t=-5ms
+        t_delay = tree.getNode(f"bias.bias_params.trig_time").getData().data() * 1e3 # ms, this is programmed bias delay
+        time = dtacq_time + dtacq_delay
 
         # calibrate data (this should be added to MDS+)
 
@@ -93,9 +97,6 @@ class BiasPPS:
         zero_offset(L_VFB)
         zero_offset(R_VFB)
 
-        # time
-        N_points = len(L_Dem)
-        time = np.linspace(0,t_max, N_points) - t_delay
 
         # save
         self.time = time
@@ -211,6 +212,7 @@ class Interferometer:
         axs.legend()
         axs.grid()
         axs.set_title(self.shot)
+        plt.show()
 
 
 class FluxLoop:
@@ -229,7 +231,13 @@ class FluxLoop:
         FL2 = tree.getNode("diag.fluxloops.fl2").getData().data() * 1e8
         FL3 = tree.getNode("diag.fluxloops.fl3").getData().data() * 1e8
 
+        # the sign on flux loop 3 is questionable, so we integrate
+        sign = np.sign( np.sum(FL3) )
+        FL3 *= sign
+
         #FL3 *= -1 # used for 0721, but not 0729
+        #if self.shot > 240809000 and self.shot < 240830000:
+        #    FL3 *= -1
 
         # convert to ms
         #time = tree.getNode("diag.fluxloops.time").getData().data() * 1e3
@@ -278,6 +286,7 @@ class FluxLoop:
         self.P3 = P3
 
 
+
     def plot(self):
 
         fig,axs = plt.subplots(1,1,figsize=(10,5))
@@ -292,7 +301,7 @@ class FluxLoop:
 
     def plotExtra(self):
 
-        fig,axs = plt.subplots(1,3,figsize=(10,5))
+        fig,axs = plt.subplots(1,3,figsize=(12,5), sharex=True)
         axs[0].plot(self.time,self.FL1,'C3', label="Flux Loop 1 [Mx]")
         axs[0].plot(self.time,self.FL2,'C2', label="Flux Loop 2 [Mx]")
         axs[0].plot(self.time,self.FL3,'C0', label="Flux Loop 3 [Mx]")
@@ -308,9 +317,10 @@ class FluxLoop:
             a.set_xlabel("time [ms]")
             a.legend()
             a.grid()
-            a.set_xlim(-2,16)
+            #a.set_xlim(-2,16)
 
         fig.suptitle(self.shot)
+        fig.tight_layout()
 
 
 
@@ -322,31 +332,41 @@ class AXUV:
         self.load()
 
     def load(self):
-
         tree = mds.Tree("wham",self.shot)
 
-        raw = "raw.acq1001_639"
-        '''
-        64 channels
-        60 populated, 20 per diode
+        data = []
+        R = []
+        Phi = []
+        Z = []
+        b = []
+        Ohm = []
+        for j in range(20):
+            root = f"diag.axuv.DIODEARRAY1.CH_{j+1:02d}"
+            data.append(tree.getNode(f'{root}.PHOTOCURRENT').getData().data())
 
-        53-62 ordered center to edge
-        62 is the BOTTOM edge (z0_p10)
-        '''
+            R.append(tree.getNode(f'{root}.R').getData().data())
+            Phi.append( tree.getNode(f'{root}.PHI').getData().data() )
+            Z.append( tree.getNode(f'{root}.Z').getData().data() )
+            b.append( tree.getNode(f'{root}.B_IMPACT').getData().data())
+            Ohm.append( tree.getNode(f'{root}.RESISTOR').getData().data())
 
-        self.data = [-tree.getNode(f"{raw}.ch_{j+1:02d}").getData().data() for j in range(64)]
-        self.freq = tree.getNode(f"{raw}.frequency").getData().data() 
-        self.trig = tree.getNode(f"{raw}.trig_time").getData().data() 
-        self.decimation = tree.getNode(f"{raw}.decimation").getData().data() 
-        self.nsamp = tree.getNode(f"{raw}.numsamples").getData().data() 
-        time = tree.getNode(f"{raw}.ch_01").dim_of().data() * 1e3 # ms
+        time = tree.getNode(f'{root}.PHOTOCURRENT').dim_of().data() * 1e3
 
+        self.data = np.array(data)
+        self.R = np.array(R)
+        self.Phi = np.array(Phi)
+        self.Z = np.array(Z)
+        self.b = np.array(b)
+        self.Ohm = np.array(Ohm)
         self.time = time
 
+
     def plot(self):
+        cmap = pl.cm.turbo(np.linspace(0,1,20))
+
         fig,axs = plt.subplots(1,1,figsize=(12,8))
-        for j in range(52,62):
-            axs.plot(self.time,self.data[j], label=f"Ch {j+1}")
+        for j in range(20):
+            axs.plot(self.time,self.data[j], label=f"Ch {j+1}", color=cmap[j])
 
         axs.grid()
         axs.legend(loc=3, fontsize=6)
@@ -435,22 +455,23 @@ class ECH:
         self.ech_target = tree.getNode("ech.ech_params.ech_target").getData().data()
         self.pol_ang_1 = tree.getNode("ech.ech_params.pol_ang_1").getData().data()
         self.pol_ang_2 = tree.getNode("ech.ech_params.pol_ang_2").getData().data()
-        self.mir_ang = tree.getNode("ech.ech_params.mirror_ang").getData().data()
+#        self.mir_ang = tree.getNode("ech.ech_params.mirror_ang").getData().data()
 
 
     def plot(self):
-        fig,axs = plt.subplots(3,1, sharex=True)
+        fig,axs = plt.subplots(3,1, sharex=True, figsize=(8,6))
         axs[0].plot(self.time, self.Fwg_filt, label="Waveguide Forward Power [kW]")
-        axs[1].plot(self.time, self.Rwg_filt, label="Waveguide Reflected Power [kW]")
-        axs[2].plot(self.time, self.Vs_filt, label="Vessel Stray Power [kW]")
+        axs[1].plot(self.time, self.Rwg_filt, label="Waveguide Reflected Power [arb]")
+        axs[2].plot(self.time, self.Vs_filt, label="Vessel Stray Power [arb]")
 
-        
         for a in axs:
             a.grid()
-            a.legend()
+            a.legend(loc=1)
         axs[0].set_title(f"HVPS {self.HVPS_V} V")
-        axs[-1].set_ylabel("time [ms]")
+        axs[-1].set_xlabel("time [ms]")
         fig.suptitle(self.shot)
+
+        plt.show()
 
 
 class EdgeProbes:
@@ -497,16 +518,22 @@ class EdgeProbes:
         tree = mds.Tree("wham",self.shot)
 
         def getScope(scope="TQ_SCOPE",ch=1):
-            root = f"raw.{scope}"
-            node = f"{root}.ch_{ch:02d}"
-            trig = tree.getNode(f"{root}.trig_time").getData().data() # scalar offset [s]
-            freq = tree.getNode(f"{node}.freq").getData().data()
-            delay = tree.getNode(f"{node}.delay").getData().data()
-            arr = tree.getNode(f"{node}.signal").dim_of().data()
-            data = tree.getNode(f"{node}.signal").getData().data()
+            try:
+                root = f"raw.{scope}"
+                node = f"{root}.ch_{ch:02d}"
+                trig = tree.getNode(f"{root}.trig_time").getData().data() # scalar offset [s]
+                freq = tree.getNode(f"{node}.freq").getData().data()
+                delay = tree.getNode(f"{node}.delay").getData().data()
+                arr = tree.getNode(f"{node}.signal").dim_of().data()
+                data = tree.getNode(f"{node}.signal").getData().data()
+    
+                time = (arr / freq + trig + delay) * 1e3 # convert to ms
+                signal = data * self.V_factor
+            except:
+                print(f"Problem with {node}")
+                time = np.linspace(0,20,100)
+                signal = np.zeros_like(time)
 
-            time = (arr / freq + trig + delay) * 1e3 # convert to ms
-            signal = data * self.V_factor
             return signal, time
 
         def getRP(rack=1,RP=1,ch=1):
@@ -526,8 +553,10 @@ class EdgeProbes:
         P02, T02 = getRP(RP=7,ch=2)
         P03, T03 = getRP(RP=5,ch=1)
         P04, T04 = getRP(RP=5,ch=2)
-        P05, T05 = getRP(RP=3,ch=1)
-        P06, T06 = getRP(RP=3,ch=2)
+        #P05, T05 = getRP(RP=3,ch=1)
+        #P06, T06 = getRP(RP=3,ch=2)
+        P05, T05 = getScope(scope="mason_ds1000", ch=3)
+        P06, T06 = getScope(scope="mason_ds1000", ch=4)
         P07, T07 = getRP(RP=8,ch=1)
         P08, T08 = getRP(RP=8,ch=2)
         P09, T09 = getScope(scope="TQ_SCOPE",ch=1)
@@ -548,11 +577,11 @@ class EdgeProbes:
         #P11 = np.zeros_like(P01)
         #P12 = np.zeros_like(P01)
         self.ProbeArr = [P01, P02, P03, P04, 
-                                  P05, P06, P07, P08, 
-                                  P09, P10, P11, P12]
+                         P05, P06, P07, P08, 
+                         P09, P10, P11, P12]
         self.TimeArr = [T01, T02, T03, T04, 
-                                 T05, T06, T07, T08, 
-                                 T09, P10, T11, T12]
+                        T05, T06, T07, T08, 
+                        T09, T10, T11, T12]
 
     def plot(self):
         fig,axs = plt.subplots(1,1,figsize=(13,10),sharex=True)
@@ -593,3 +622,122 @@ class NBI:
         self.V_Beam = V_Beam
         self.time = time
 
+class Radiation:
+
+    def __init__(self, shot):
+
+        self.shot = shot
+        self.load()
+
+    def load(self):
+
+        tree = mds.Tree("wham",self.shot)
+
+        try:
+            soft_xray = tree.getNode("diag.soft_xray.spectrum").getData().data()
+            E_soft = tree.getNode("diag.soft_xray.spectrum").dim_of().data() # 8192 points, approximately 0 to 80 keV
+        except:
+            print("issue loading soft xray")
+    
+        try:
+            # Kunal's plastic scintillator in lead house
+            neutron = tree.getNode("diag.neutrondet.calib_signal").getData().data()
+            t_neutron = tree.getNode("diag.neutrondet.calib_signal").dim_of().data()
+        except:
+            print("issue loading neutrons")
+    
+    
+        try:
+            # sometime before 0924 hard xray switched from ch 03 to ch 02
+            hard_xray = tree.getNode("raw.mason_ds1000.ch_02.signal").getData().data()
+            t_hard = tree.getNode("raw.mason_ds1000.ch_02.signal").dim_of().data() 
+            h_freq = tree.getNode("raw.mason_ds1000.ch_02.freq").getData().data() # NOT included in dim_of (!)
+            h_offset = tree.getNode("raw.mason_ds1000.ch_02.offset").getData().data() # already included in signal
+            h_delay = tree.getNode("raw.mason_ds1000.ch_02.delay").getData().data()
+            h_trig = tree.getNode("raw.mason_ds1000.trig_time").getData().data()
+
+            time = (t_hard / h_freq) + h_trig + h_delay
+            self.t_hard = time * 1e3
+
+            offset = np.mean(hard_xray[:10000])
+            self.hard_xray = hard_xray  - offset
+
+        except:
+            print("issue loading hard xray")
+
+    def plot(self, fig=None, axs=None):
+
+        s = self
+
+        # the data is in pulse height volts.
+        # approximately 100 keV / 100 mV.
+        axs.plot(s.t_hard, s.hard_xray * 1e3, label=f"shot {s.shot}")
+
+        axs.legend()
+        axs.set_title("hard xray")
+
+        axs.set_ylabel("Pulse Height [keV]")
+        axs.set_xlabel("time [ms]")
+
+        #fig.suptitle(s.shot)
+        fig.tight_layout()
+
+class Gas:
+    def __init__(self, shot):
+
+        self.shot = shot
+
+        self.load()
+
+    def load(self):
+
+        tree = mds.Tree("wham",self.shot)
+        t_puff = tree.getNode("fueling.cmd_wvfrm.time").getData().data()
+        t_asdex = tree.getNode("raw.diag_rp_01.rp_02.ch_01").dim_of().data()
+        t_redIon = tree.getNode("raw.diag_rp_01.rp_04.ch_01").dim_of().data()
+
+        gasDmd = tree.getNode("fueling.cmd_wvfrm.signal").getData().data() 
+        asdex1 = tree.getNode("raw.diag_rp_01.rp_02.ch_01").getData().data()
+        asdex2 = tree.getNode("raw.diag_rp_01.rp_02.ch_02").getData().data()
+        redIon = tree.getNode("raw.diag_rp_01.rp_04.ch_01").getData().data()
+
+        freq2 = tree.getNode("raw.diag_rp_01.rp_02.freq").getData().data()
+        freq4 = tree.getNode("raw.diag_rp_01.rp_04.freq").getData().data()
+        trig = tree.getNode("raw.diag_rp_01.trig_time").getData().data()
+
+        self.t_asdex = (t_asdex / freq2 + trig) * 1e3
+        self.t_redIon = (t_redIon / freq4 + trig) * 1e3
+        self.t_puff = t_puff
+
+        self.asdex_lo = (asdex1 + 7) * 1e-5
+        self.asdex_hi = (asdex2 + .1) * 1e-3
+        self.redIon = redIon * -2.5e-4 # Torr
+        self.gasDmd = gasDmd
+
+
+    def plot(self, fig=None, axs=None):
+
+        s = self
+
+        if fig == None:
+            fig,axs = plt.subplots(3,1)
+            for a in axs:
+                a.grid()
+
+        axs[0].plot(s.t_puff, s.gasDmd)
+        #axs[1].plot(s.t_asdex, s.asdex_hi)
+        axs[1].plot(s.t_asdex, s.asdex_lo *1e3, label=f"shot {s.shot}")
+        axs[1].plot(s.t_asdex, s.asdex_hi *1e3)
+        axs[2].plot(s.t_redIon, s.redIon)
+
+        axs[1].legend()
+        axs[0].set_title("gas puff demand")
+        axs[1].set_title("asdex gauge")
+        axs[2].set_title("shielded 'red' ion gauge")
+
+        axs[0].set_ylabel("arb")
+        axs[1].set_ylabel("mTorr")
+        axs[2].set_ylabel("Torr")
+
+        #fig.suptitle(s.shot)
+        fig.tight_layout()
