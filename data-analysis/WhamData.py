@@ -13,9 +13,10 @@ classes:
     FluxLoop
     AXUV
     ECH
-    Edge Probes
+    EdgeProbes
+    EndRings
 
-8 August 2024
+Updated 30 September 2024
 '''
 
 class BiasPPS:
@@ -322,7 +323,31 @@ class FluxLoop:
         fig.suptitle(self.shot)
         fig.tight_layout()
 
+    def load_raw(self, axs=None, N=100, alpha=0.7):
 
+        tree = mds.Tree("wham",self.shot)
+
+        # convert from Weber to Maxwell
+        raw = "raw.acq1001_631"
+        sig1a = tree.getNode(f"{raw}.ch_01").getData().data()
+        sig1b = tree.getNode(f"{raw}.ch_02").getData().data()
+        sig2a = tree.getNode(f"{raw}.ch_03").getData().data()
+        sig2b = tree.getNode(f"{raw}.ch_04").getData().data()
+        sig3a = tree.getNode(f"{raw}.ch_05").getData().data()
+        sig3b = tree.getNode(f"{raw}.ch_06").getData().data()
+
+        axs[0,0].plot(sig1a[::N], label=f"{self.shot}", alpha=alpha)
+        axs[1,0].plot(sig1b[::N], alpha=alpha)
+        axs[0,1].plot(sig2a[::N], alpha=alpha)
+        axs[1,1].plot(sig2b[::N], alpha=alpha)
+        axs[0,2].plot(sig3a[::N], alpha=alpha)
+        axs[1,2].plot(sig3b[::N], alpha=alpha)
+
+        axs[0,0].set_title("Flux Loop 1")
+        axs[0,1].set_title("Flux Loop 2")
+        axs[0,2].set_title("Flux Loop 3")
+        axs[0,0].set_ylabel("loop a")
+        axs[1,0].set_ylabel("loop b")
 
 class AXUV:
 
@@ -741,3 +766,84 @@ class Gas:
 
         #fig.suptitle(s.shot)
         fig.tight_layout()
+
+
+class EndRing:
+
+    def __init__(self, shot):
+
+        self.shot = shot
+        self.load()
+
+    def load(self, R1=270e3, # upper voltage divider resistor, Ohm
+                   R2=2.7e3, # lower voltage divider resistor, Ohm
+                   win = 101, # savgol window
+                   pol = 3,   # savgol polynomial
+                   ):
+
+        # set up tree
+        tree = mds.Tree("wham",self.shot)
+        source = "raw.acq196_370"
+        
+        try:
+            bias = BiasPPS(self.shot)
+        except: 
+            print(f"Issue with bias {self.shot}")
+        
+        # get source nodes, these are uploaded by the DTACQ
+        idx = np.arange(20,30)[::-1] + 1 # channels 21-30
+        dtacq_arr = [ tree.getNode(f"{source}.ch_{j+1:02d}") for j in idx ]
+        t_delay = tree.getNode(f"{source}.trig_time").getData().data()
+        dtacq_time = dtacq_arr[0].getData().dim_of().data()
+        time = (dtacq_time + t_delay) * 1e3
+        
+        # Get data
+        V_factor = (R1+R2)/R2
+        
+        # smooth signals
+        
+        # zero offset
+        def zero_offset(f,idx=1000):
+            f -= np.mean(f[:idx])
+        
+        ProbeArr = []
+        SmoothArr = []
+        N_ring = 10
+        for j in range(N_ring):
+            Vf = dtacq_arr[j].getData().data() * V_factor
+            zero_offset(Vf)
+            Vs = savgol(Vf,win,pol)
+        
+            ProbeArr.append(Vf)
+            SmoothArr.append(Vs)
+        ProbeArr = np.array(ProbeArr)
+        SmoothArr = np.array(SmoothArr)
+        
+        # temp
+        SmoothArr[0] = bias.RVs
+        ProbeArr[0] = bias.R_VLem
+        
+        rax = np.array([4.0,8.0,11.1,13.4,15.3,16.9,18.3,19.5,20.6,21.6]) # use bottom radii for rings 2-10, and middle for disk 1
+
+        self.radius = rax
+        self.mid = (rax[1:] + rax[:-1])/2
+        self.ProbeArr = ProbeArr
+        self.SmoothArr = SmoothArr
+        self.time = time # ms
+
+
+        def get_time_index(t):
+            # get the index at time t, ms
+            j = np.argmin(np.abs(time - t))
+            return j
+
+        t = 5
+        j = get_time_index(t)
+        V = SmoothArr[:,j]
+        Er = -np.diff(V)/np.diff(rax)  # V / cm
+        B0 = 0.08
+        vphi = Er*100 / B0 / 1e3   # km/s
+        omega = vphi / rax[:-1] * 100  # rad / ms
+
+        self.V_ring = V
+        self.Vphi = vphi
