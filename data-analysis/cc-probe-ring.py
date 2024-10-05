@@ -13,10 +13,44 @@ usage: python script.py 240803094
 T Qian - 9/30/2024
 '''
 
+# Kunal Sanwalka- Added function to save edge fluctuation data as an npz file for analysis with other scripts
+def save_npz(shot_num):
+
+    # Edge probe data object
+    edge = EdgeProbes(shot_num, RP=True)
+
+    # Directory in which to save the .npz file
+    dataDest = '/home/WHAMdata/python/oneOffScripts/data/'
+
+    # Number of edge fluctuation probes
+    N = 12
+
+    # Array to store edge probe data
+    probe0Data = edge.ProbeArr[0]
+    # Associated time array
+    probe0Time = edge.TimeArr[0]
+    edgeData = np.zeros(shape=(N, len(probe0Data)))
+    for i in range(N):
+        probeData = edge.ProbeArr[i]
+        timeArr = edge.TimeArr[i]
+
+        # Interpolate so they all have the same time basis
+        try:
+            probeData = np.interp(probe0Time, timeArr, probeData)
+        except:
+            probeData = np.zeros(len(probe0Time))
+        edgeData[i] = probeData
+
+    np.savez(dataDest+'{}_edge_probe_data.npz'.format(shot_num), edgeData=edgeData, timeArr=probe0Time)
+
+    return
+
 # use parser to get shot number
 shot_num = int(sys.argv[1])
 edge = EdgeProbes(shot_num, RP=True)
 
+# Kunal Sanwalka- Call function to save the data as an .npz file
+save_npz(shot_num)
 
 fig = plt.figure(figsize=(15,8))
 gs = GridSpec(3,3, figure=fig)
