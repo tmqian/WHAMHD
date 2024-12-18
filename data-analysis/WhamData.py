@@ -717,11 +717,11 @@ class Gas:
     def load(self):
 
         tree = mds.Tree("wham",self.shot)
-        t_puff = tree.getNode("fueling.cmd_wvfrm.time").getData().data()
+        gasDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
+        t_puff = tree.getNode("fueling.cmd_wvfrms.main").dim_of().data()
         t_asdex = tree.getNode("raw.diag_rp_01.rp_02.ch_01").dim_of().data()
         t_redIon = tree.getNode("raw.diag_rp_01.rp_04.ch_01").dim_of().data()
 
-        gasDmd = tree.getNode("fueling.cmd_wvfrm.signal").getData().data() 
         asdex1 = tree.getNode("raw.diag_rp_01.rp_02.ch_01").getData().data()
         asdex2 = tree.getNode("raw.diag_rp_01.rp_02.ch_02").getData().data()
         redIon = tree.getNode("raw.diag_rp_01.rp_04.ch_01").getData().data()
@@ -732,7 +732,7 @@ class Gas:
 
         self.t_asdex = (t_asdex / freq2 + trig) * 1e3
         self.t_redIon = (t_redIon / freq4 + trig) * 1e3
-        self.t_puff = t_puff
+        self.t_puff = t_puff * 1e3 # ms
 
         self.asdex_lo = (asdex1 + 7) * 1e-5
         self.asdex_hi = (asdex2 + .1) * 1e-3
