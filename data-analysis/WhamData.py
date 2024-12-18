@@ -1,7 +1,10 @@
 import MDSplus as mds
+
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter as savgol
+
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as pl
 
 '''
@@ -16,7 +19,7 @@ classes:
     EdgeProbes
     EndRings
 
-Updated 30 September 2024
+Updated 17 December 2024
 '''
 
 class BiasPPS:
@@ -796,16 +799,16 @@ class EndRing:
         t_delay = tree.getNode(f"{source}.trig_time").getData().data()
         dtacq_time = dtacq_arr[0].getData().dim_of().data()
         time = (dtacq_time + t_delay) * 1e3
-        
+
         # Get data
         V_factor = (R1+R2)/R2
-        
+
         # smooth signals
-        
+
         # zero offset
         def zero_offset(f,idx=1000):
             f -= np.mean(f[:idx])
-        
+
         ProbeArr = []
         SmoothArr = []
         N_ring = 10
@@ -813,37 +816,101 @@ class EndRing:
             Vf = dtacq_arr[j].getData().data() * V_factor
             zero_offset(Vf)
             Vs = savgol(Vf,win,pol)
-        
+
             ProbeArr.append(Vf)
             SmoothArr.append(Vs)
         ProbeArr = np.array(ProbeArr)
         SmoothArr = np.array(SmoothArr)
-        
+
         # temp
         SmoothArr[0] = bias.RVs
         ProbeArr[0] = bias.R_VLem
-        
+
         rax = np.array([4.0,8.0,11.1,13.4,15.3,16.9,18.3,19.5,20.6,21.6]) # use bottom radii for rings 2-10, and middle for disk 1
 
-        self.radius = rax
+        self.radii = rax
         self.mid = (rax[1:] + rax[:-1])/2
         self.ProbeArr = ProbeArr
         self.SmoothArr = SmoothArr
         self.time = time # ms
 
 
+    def calc_rotation(self,t, B0=0.08):
+        '''
+        calculate the rotation profile 
+        - for given time t [ms]
+        - assuming B [T]
+        '''
+
         def get_time_index(t):
             # get the index at time t, ms
-            j = np.argmin(np.abs(time - t))
+            j = np.argmin(np.abs(self.time - t))
             return j
 
-        t = 5
         j = get_time_index(t)
-        V = SmoothArr[:,j]
+        V = self.SmoothArr[:,j]
+        rax = self.radii
+
         Er = -np.diff(V)/np.diff(rax)  # V / cm
-        B0 = 0.08
         vphi = Er*100 / B0 / 1e3   # km/s
         omega = vphi / rax[:-1] * 100  # rad / ms
 
         self.V_ring = V
         self.Vphi = vphi
+        self.Er = Er
+        self.Omega = omega
+
+    def plot_rotation(self,
+                      time_slices = [5,8,15], # array, ms
+            ):
+
+        # make plots
+        fig = plt.figure(figsize=(15,8))
+        gs = GridSpec(5,3, figure=fig)
+
+        ax0 = fig.add_subplot(gs[:2,:])
+        ax1 = fig.add_subplot(gs[2:,0])
+        ax2 = fig.add_subplot(gs[2:,1])
+        ax3 = fig.add_subplot(gs[2:,2])
+        axs = np.array([ax1,ax2,ax3])
+
+        def get_time_index(t):
+            # get the index at time t, ms
+            j = np.argmin(np.abs(self.time - t))
+            return j
+
+        # plot time trace
+        N_ring = len(self.ProbeArr)
+        for j in range(N_ring):
+            ax0.plot(self.time, self.ProbeArr[j], f"C{j}", lw=0.5)
+            ax0.plot(self.time, self.SmoothArr[j], f"C{j}", label=f"Ring {j+1}")
+
+        ax0.set_xlabel("time [ms]")
+        ax0.set_title("floating potential [V]", fontsize=12)
+        ax0.set_xlim(-1,20)
+        ax0.set_ylim(1.05 * np.min(self.ProbeArr), np.max(self.ProbeArr)*1.2)
+        ax0.grid()
+        ax0.legend(loc=1, fontsize=7)
+
+        # plot time slices
+        rax = self.radii
+        for i,t in enumerate(time_slices):
+
+            self.calc_rotation(t)
+            ax0.axvline(t,color=f'C{i}', ls='--')
+
+            ax1.plot(rax,self.V_ring,'o-',label=f"t = {t} ms")
+            ax2.plot(rax[:-1],self.Er,'o-')
+            ax3.plot(rax[:-1],self.Omega,'o-')
+
+        ax1.set_title("Floating Potential [V]", fontsize=12)
+        ax2.set_title("Radial Electric Field [V/cm]", fontsize=12)
+        ax3.set_title("ExB Rotation [rad/ms]", fontsize=12)
+        ax1.legend()
+
+        for a in axs:
+            a.grid()
+            a.set_xlabel("Ring Middle Radius [cm]")
+
+        fig.suptitle(self.shot)
+        fig.tight_layout()
