@@ -445,9 +445,13 @@ class Spectrometer:
 
         self.C = self.results.sel(line='CIII')
         self.LOS = LOS
-        #self.load_Carbon()
+        self.ROI = ROI
 
-    def load_Carbon(self):
+        self.gate_delay = float(self.C['data'].gate_delay)/1e6 # ms
+        self.gate_width = float(self.C['data'].gate_width)/1e6 # ms
+        # is the ICCD intensifier saved?
+
+    def plot_Vi_T_CIII(self):
 
         C = self.results.sel(line='CIII')
 
@@ -465,9 +469,14 @@ class Spectrometer:
         axs[0].set_ylabel("Ion Velocity [km/s]")
         axs[0].legend()
 
-        axs[0].set_title(self.shot)
+        tag = f"t_gate = {self.gate_width} ms, t_delay = {self.gate_delay} ms"
+        axs[0].set_title(tag)
+        fig.suptitle(self.shot)
+
+    def plot_spectra(self):
 
         fig,axs = plt.subplots(1,1,figsize=(12,6))
+        C = self.results.sel(line='CIII')
 
         def untangle(data):
             '''
@@ -485,6 +494,10 @@ class Spectrometer:
             arg = np.argsort(arr)
             return np.array(data[arg])
 
+        #for c in [464.7418,464.92708, 465.0246,465.08384,465.1473]:
+        for c in [464.7418, 465.0246,465.1473]:
+            axs.axvline(c, ls='--', color='k', label=f"{c} nm")
+
         data = untangle(self.C.data)
         #data = np.array(self.C.data)[9, 8, 7, 1, 2, 0, 3, 4, 6, 5]
         shift = 0.1
@@ -492,20 +505,19 @@ class Spectrometer:
 
             R = np.array(C.los[j])
             c_idx = get_color_index(R)
-            axs.plot(C.wavelength - shift, spectra, 'o-', color=cmap[c_idx], label= f"{C.los[j]:.1f}")
+            axs.plot(C.wavelength - shift, spectra, 'o-', color=cmap[c_idx], label= f"{C.los[j]:.1f}, (roi,los)={self.ROI[j]},{self.LOS[j]:.1f}")
             #axs.plot(C.wavelength - shift, C.data[j], 'o-', color=cmap[c_idx], label= f"{C.los[j]:.1f}")
             #axs.plot(C.wavelength - shift, C.data[arg[j]], 'o-', color=cmap[c_idx], label= f"{C.los[j]:.1f}")
 
-        #for c in [464.7418,464.92708, 465.0246,465.08384,465.1473]:
-        for c in [464.7418, 465.0246,465.1473]:
-            axs.axvline(c, ls='--', color='k')
 
         axs.set_xlabel("wavelength [nm]")
         axs.set_ylabel("intensity [arb]")
-        axs.set_title(self.shot)
-        axs.legend()
+        tag = f"t_gate = {self.gate_width} ms, t_delay = {self.gate_delay} ms"
+        axs.set_title(tag)
+        axs.legend(fontsize=10)
         axs.grid()
 
+        fig.suptitle(self.shot)
 
     def plot_Vi(self,ax):
 
