@@ -713,6 +713,118 @@ class Radiation:
         #fig.suptitle(s.shot)
         fig.tight_layout()
 
+class Bolometer:
+    def __init__(self, shot):
+
+        self.shot = shot
+        self.load()
+
+    def load(self):
+
+        tree = mds.Tree("wham",self.shot)
+        node = "diag.cu_bolom"
+        self.data = np.array([tree.getNode(f"{node}.ch_{j+1:02d}").getData().data()  for j in range(7)])
+        self.time = tree.getNode(f"{node}.time").getData().data()
+
+    def plot(self):
+
+        fig,axs = plt.subplots(7,1,figsize=(8,9), sharex=True)
+        for j in range(7):
+            data = bolo.data[j]
+            dT = np.max(data) - np.min(data)
+            axs[j].plot(bolo.time, data, label=rf"$\Delta T$ = {dT:.2f}")
+            axs[j].axhline(np.min(data), ls='--', color='C1', lw=0.5)
+            axs[j].axhline(np.max(data), ls='--', color='C1', lw=0.5)
+            axs[j].set_ylabel(f"Ch {j+1}")
+
+        for a in axs:
+            a.grid()
+            a.legend()
+
+        axs[-1].set_xlabel("time [ms]")
+
+        fig.suptitle(self.shot)
+        plt.show()
+
+    def plotQ(self, axs, N=6, # N channels
+              vessel_D = 60, # cm, diameter
+              vessel_L = 150, # cm, length
+              foil_area = 3.9, # cm2
+              foil_mass = 0.36, # g
+              specific_heat = 0.385, # J/g/C
+            ):
+
+        arr = []
+        for j in np.arange(N):
+            data = self.data[j+1] # skip ch 0
+            T = np.max(data) - np.min(data)
+            arr.append(T)
+
+        dT = np.array(arr)
+
+        dE = foil_mass*specific_heat*dT
+        Q = dE / foil_area *1e3 #mJ/cm2
+
+        surface = np.pi*vessel_D*vessel_L #cm2
+        E = Q*surface / 1e6 # kJ
+
+        rax = np.arange(N)+1
+        axs.plot(rax,Q,'o-',label=self.shot)
+
+    def plotCombo(self, N=6, # N channels
+              vessel_D = 60, # cm, diameter
+              vessel_L = 150, # cm, length
+              foil_area = 3.9, # cm2
+              foil_mass = 0.36, # g
+              specific_heat = 0.385, # J/g/C
+            ):
+
+        fig = plt.figure(figsize=(12,7))
+        gs = GridSpec(N, 2, figure=fig)
+
+        ax0 = fig.add_subplot(gs[:,1])
+        axs = [ fig.add_subplot(gs[k,0]) for k in range(N) ]
+
+        arr = []
+        for j in range(N):
+            data = self.data[j+1] # skip ch 0
+            dT = np.max(data) - np.min(data)
+            axs[j].plot(self.time, data, label=rf"$\Delta T$ = {dT:.2f}")
+            axs[j].axhline(np.min(data), ls='--', color='C1', lw=0.5)
+            axs[j].axhline(np.max(data), ls='--', color='C1', lw=0.5)
+            axs[j].set_ylabel(f"Ch {j+1}")
+            arr.append(dT)
+
+        dT = np.array(arr)
+
+        dE = foil_mass*specific_heat*dT
+        Q = dE / foil_area *1e3 #mJ/cm2
+
+        surface = np.pi*vessel_D*vessel_L #cm2
+        E = Q*surface / 1e6 # kJ
+
+        rax = np.arange(N)+1
+        ax0.plot(rax,Q,'C1o-', label=f"Average CX Loss: {np.mean(E):.2f} kJ")
+        ax0.set_title(r"Neutral Heat Flux [mJ / cm$^2$]")
+        ax0.set_xlabel("Ch #")
+        ax0.grid()
+        ax0.legend()
+
+        for a in axs:
+            a.legend()
+            #a.sharex(axs[-1])
+            a.minorticks_on()
+            a.grid(which='both')
+            a.grid(which='minor', linestyle=":", linewidth=0.5)
+
+        for a in axs[:-1]:
+            a.xaxis.set_ticklabels([])
+
+        axs[-1].set_xlabel("time [ms]")
+
+        fig.suptitle(self.shot)
+        plt.show()
+
 class Gas:
     def __init__(self, shot):
 
