@@ -368,9 +368,11 @@ class AXUV:
         Z = []
         b = []
         Ohm = []
+        label = []
         for j in range(20):
             root = f"diag.axuv.DIODEARRAY1.CH_{j+1:02d}"
             data.append(tree.getNode(f'{root}.PHOTOCURRENT').getData().data())
+            label.append(tree.getNode(f"{root}.DIODE_NUM").getData().data())
 
             R.append(tree.getNode(f'{root}.R').getData().data())
             Phi.append( tree.getNode(f'{root}.PHI').getData().data() )
@@ -381,6 +383,7 @@ class AXUV:
         time = tree.getNode(f'{root}.PHOTOCURRENT').dim_of().data() * 1e3
 
         self.data = np.array(data)
+        self.label = np.array(label)
         self.R = np.array(R)
         self.Phi = np.array(Phi)
         self.Z = np.array(Z)
@@ -719,28 +722,41 @@ class Gas:
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
         gasDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
+        mainDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
+        baffleDmd = tree.getNode("fueling.cmd_wvfrms.baffle").getData().data() 
+        necDmd = tree.getNode("fueling.cmd_wvfrms.nec").getData().data() 
+        secDmd = tree.getNode("fueling.cmd_wvfrms.sec").getData().data() 
+        secondaryDmd = tree.getNode("fueling.cmd_wvfrms.secondary").getData().data() 
+
+        gasDmd = mainDmd
         t_puff = tree.getNode("fueling.cmd_wvfrms.main").dim_of().data()
-        t_asdex = tree.getNode("raw.diag_rp_01.rp_02.ch_01").dim_of().data()
+        t_nec = tree.getNode("fueling.cmd_wvfrms.nec").dim_of().data() 
+        t_asdex = tree.getNode("fueling.asdex_gauge.1x.signal").dim_of().data()
         t_redIon = tree.getNode("raw.diag_rp_01.rp_04.ch_01").dim_of().data()
 
-        asdex1 = tree.getNode("raw.diag_rp_01.rp_02.ch_01").getData().data()
-        asdex2 = tree.getNode("raw.diag_rp_01.rp_02.ch_02").getData().data()
+        asdex1 = tree.getNode("fueling.asdex_gauge.10x.signal").getData().data()
+        asdex2 = tree.getNode("fueling.asdex_gauge.1x.signal").getData().data()
         redIon = tree.getNode("raw.diag_rp_01.rp_04.ch_01").getData().data()
 
         freq2 = tree.getNode("raw.diag_rp_01.rp_02.freq").getData().data()
         freq4 = tree.getNode("raw.diag_rp_01.rp_04.freq").getData().data()
         trig = tree.getNode("raw.diag_rp_01.trig_time").getData().data()
 
-        self.t_asdex = (t_asdex / freq2 + trig) * 1e3
         self.t_redIon = (t_redIon / freq4 + trig) * 1e3
         self.t_puff = t_puff * 1e3 # ms
+        self.t_asdex = t_asdex * 1e3 # ms
+        self.t_nec = t_nec * 1e3 # ms
 
-        self.asdex_lo = (asdex1 + 7) * 1e-5
-        self.asdex_hi = (asdex2 + .1) * 1e-3
+        self.asdex_lo = asdex1 # Torr
+        self.asdex_hi = asdex2
         self.redIon = redIon * -2.5e-4 # Torr
         self.gasDmd = gasDmd
+        self.mainDmd = mainDmd
+        self.baffleDmd = baffleDmd
+        self.necDmd = necDmd
+        self.secDmd = secDmd
+        self.secondaryDmd = secondaryDmd
 
 
     def plot(self, fig=None, axs=None):
@@ -788,14 +804,15 @@ class EndRing:
         tree = mds.Tree("wham",self.shot)
         source = "raw.acq196_370"
         
-        try:
-            bias = BiasPPS(self.shot)
-        except: 
-            print(f"Issue with bias {self.shot}")
-        
         # get source nodes, these are uploaded by the DTACQ
-        idx = np.arange(20,30)[::-1] + 1 # channels 21-30
-        dtacq_arr = [ tree.getNode(f"{source}.ch_{j+1:02d}") for j in idx ]
+        if self.shot < 241218000:
+            # this is the setting used for APS Sept 2024
+            idx = np.arange(20,30)[::-1] + 1 # channels 21-30
+            dtacq_arr = [ tree.getNode(f"{source}.ch_{j+1:02d}") for j in idx ]
+        elif self.shot >= 241218000:
+            idx = np.arange(21,31)
+            dtacq_arr = [ tree.getNode(f"{source}.ch_{j:02d}") for j in idx ]
+
         t_delay = tree.getNode(f"{source}.trig_time").getData().data()
         dtacq_time = dtacq_arr[0].getData().dim_of().data()
         time = (dtacq_time + t_delay) * 1e3
@@ -803,12 +820,11 @@ class EndRing:
         # Get data
         V_factor = (R1+R2)/R2
 
-        # smooth signals
-
         # zero offset
         def zero_offset(f,idx=1000):
             f -= np.mean(f[:idx])
 
+        # smooth signals
         ProbeArr = []
         SmoothArr = []
         N_ring = 10
