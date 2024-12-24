@@ -915,7 +915,12 @@ class EndRing:
         # set up tree
         tree = mds.Tree("wham",self.shot)
         source = "raw.acq196_370"
-        
+
+        try:
+            # used for voltage
+            bias = BiasPPS(self.shot)
+        except:
+            print(f"Issue with Bias {self.shot}")
         # get source nodes, these are uploaded by the DTACQ
         if self.shot < 241218000:
             # this is the setting used for APS Sept 2024
