@@ -2,6 +2,7 @@ import MDSplus as mds
 
 import numpy as np
 from scipy.signal import savgol_filter as savgol
+from scipy.fft import fft, fftfreq
 
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
@@ -21,6 +22,45 @@ classes:
 
 Updated 17 December 2024
 '''
+
+# Helper Functions
+
+def zero_offset(f,idx=2000):
+    f -= np.mean(f[-idx:])
+
+def STFT(signal, time,
+         W = 250, # number of windows
+        ):
+
+    '''
+    Compute "short time fourier transform" over a signal f(t)
+
+    Partition f into W windows of equal size S.
+    The original time axis with N points (N = W*S)
+    is sub-sampled into a new time axis T with S points.
+    It is assumed that W evenly divdies N.
+
+    Computes M fouier modes up to nyquist frequency (M = S/2)
+    F is the corresponding frequency space axis.
+    If time is in ms, then F is in kHz.
+    '''
+
+    # Compute integer array sizes
+    N = len(time)
+    S = N // W # samples per window
+    M = S//2 # fourier modes
+
+    # Set up time and spectral axes
+    T = time[::S]
+    dt = time[1] - time[0] # ms
+    F = fftfreq(S,dt)[:M] # kHz
+
+    # Batch Fourier Transform
+    block = signal.reshape((W, S))
+    G = fft(block,axis=1)[:,:M] # complex valued (W x M)
+    return G, T, F
+
+### End Helper
 
 class BiasPPS:
 
