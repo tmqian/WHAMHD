@@ -91,80 +91,30 @@ class BiasPPS:
         tree = mds.Tree("wham",self.shot)
 
         # load data from nodes
-        data = "bias.bias_raw"
-        raw = "raw.acq196_370"
-        raw_L_Dem = tree.getNode(f"{data}.ch01_l_dem").getData().data()
-        raw_L_ILem = tree.getNode(f"{data}.ch02_l_ilem").getData().data()
-        raw_L_VLem = tree.getNode(f"{data}.ch03_l_vlem").getData().data()
-        raw_L_Vpps = tree.getNode(f"{data}.ch04_l_fdbk").getData().data()
-        raw_R_Dem = tree.getNode(f"{data}.ch05_r_dem").getData().data()
-        raw_R_ILem = tree.getNode(f"{data}.ch06_r_ilem").getData().data()
-        raw_R_VLem = tree.getNode(f"{data}.ch07_r_vlem").getData().data()
-        raw_R_Vpps = tree.getNode(f"{data}.ch08_r_fdbk").getData().data()
-        raw_L_VFB = tree.getNode(f"{raw}.ch_09").getData().data()
-        raw_R_VFB = tree.getNode(f"{raw}.ch_10").getData().data()
-
-        # time
-        dtacq_time = tree.getNode(f"{raw}.ch_01").getData().dim_of().data() * 1e3 # ms
-        dtacq_delay = tree.getNode(f"{raw}.trig_time").getData().data() * 1e3 # ms, value -5 means dtacq starts at t=-5ms
-        t_delay = tree.getNode(f"bias.bias_params.trig_time").getData().data() * 1e3 # ms, this is programmed bias delay
-        time = dtacq_time + dtacq_delay
-
-        # calibrate data (this should be added to MDS+)
-
-        L_Dem = raw_L_Dem
-        R_Dem = raw_R_Dem
-        
-        L_ILem = raw_L_ILem * self.ILEM_gain
-        R_ILem = raw_R_ILem * self.ILEM_gain
-        
-        L_VLem = raw_L_VLem * self.VLEM_gain
-        R_VLem = raw_R_VLem * self.VLEM_gain
-        L_Vpps = raw_L_Vpps * self.VLEM_gain
-        R_Vpps = raw_R_Vpps * self.VLEM_gain
-        
-        L_VFB = raw_L_VFB * self.VFBK_gain 
-        R_VFB = raw_R_VFB * self.VFBK_gain 
-
-        # zero offset
-        def zero_offset(f,idx=2000):
-            f -= np.mean(f[-idx:])
-        
-        zero_offset(L_Dem)
-        zero_offset(R_Dem)
-        zero_offset(L_ILem)
-        zero_offset(R_ILem)
-        zero_offset(L_VLem)
-        zero_offset(R_VLem)
-        zero_offset(L_Vpps)
-        zero_offset(R_Vpps)
-        zero_offset(L_VFB)
-        zero_offset(R_VFB)
-
+        data = "bias"
+        L_Dem = tree.getNode(f"{data}.PPS_L.demand.filtered").getData().data()
+        L_ILem = tree.getNode(f"{data}.PPS_L.current.filtered").getData().data()
+        L_VLem = tree.getNode(f"{data}.PPS_L.voltage.filtered").getData().data()
+        L_Vpps = tree.getNode(f"{data}.PPS_L.voltage_PWM.filtered").getData().data()
+        L_VFB = tree.getNode(f"{data}.PPS_L.feedback_dmd.filtered").getData().data()
+        R_Dem = tree.getNode(f"{data}.PPS_R.demand.filtered").getData().data()
+        R_ILem = tree.getNode(f"{data}.PPS_R.current.filtered").getData().data()
+        R_VLem = tree.getNode(f"{data}.PPS_R.voltage.filtered").getData().data()
+        R_Vpps = tree.getNode(f"{data}.PPS_R.voltage_PWM.filtered").getData().data()
+        R_VFB = tree.getNode(f"{data}.PPS_R.feedback_dmd.filtered").getData().data()
+        time = tree.getNode(f"{data}.PPS_L.demand.filtered").dim_of().data() * 1e3 # ms
 
         # save
         self.time = time
-
-        self.raw_L_Dem  = raw_L_Dem
-        self.raw_L_ILem = raw_L_ILem
-        self.raw_L_VLem = raw_L_VLem
-        self.raw_L_Vpps = raw_L_Vpps
-        self.raw_R_Dem  = raw_R_Dem
-        self.raw_R_ILem = raw_R_ILem
-        self.raw_R_VLem = raw_R_VLem
-        self.raw_R_Vpps = raw_R_Vpps
-        self.raw_L_VFB  = raw_L_VFB 
-        self.raw_R_VFB  = raw_R_VFB
-
         self.L_Dem  = L_Dem
         self.L_ILem = L_ILem
         self.L_VLem = L_VLem
         self.L_Vpps = L_Vpps
+        self.L_VFB  = L_VFB
         self.R_Dem  = R_Dem
         self.R_ILem = R_ILem
         self.R_VLem = R_VLem
         self.R_Vpps = R_Vpps
-        self.L_VFB  = L_VFB 
         self.R_VFB  = R_VFB
 
     def smooth(self, win=51, poly=3):
