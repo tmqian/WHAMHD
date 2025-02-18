@@ -315,6 +315,7 @@ class FluxLoop:
 
         fig.suptitle(self.shot)
         fig.tight_layout()
+        return fig,axs
 
     def load_raw(self, axs=None, N=100, alpha=0.7):
 
