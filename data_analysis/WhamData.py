@@ -73,16 +73,12 @@ class BiasPPS:
         if shot < 240728011:
             # this is when I fixed the double (-) sign
             VLEM_gain *= -1
-            #ILEM_gain *= -1
-        #else:
-        #    ILEM_gain *= -1
 
         self.ILEM_gain = ILEM_gain
         self.VLEM_gain = VLEM_gain
         self.VFBK_gain = VFBK_gain
 
         self.load()
-        self.smooth()
 
     def load(self, t_max=100 #ms
             ):
@@ -95,13 +91,15 @@ class BiasPPS:
         L_Dem = tree.getNode(f"{data}.PPS_L.demand.filtered").getData().data()
         L_ILem = tree.getNode(f"{data}.PPS_L.current.filtered").getData().data()
         L_VLem = tree.getNode(f"{data}.PPS_L.voltage.filtered").getData().data()
-        L_Vpps = tree.getNode(f"{data}.PPS_L.voltage_PWM.filtered").getData().data()
-        L_VFB = tree.getNode(f"{data}.PPS_L.feedback_dmd.filtered").getData().data()
+        L_Vpps = tree.getNode(f"{data}.PPS_L.voltage_PWM.signal").getData().data()
+        L_VFB = tree.getNode(f"{data}.PPS_L.feedback_dmd.signal").getData().data()
+
         R_Dem = tree.getNode(f"{data}.PPS_R.demand.filtered").getData().data()
         R_ILem = tree.getNode(f"{data}.PPS_R.current.filtered").getData().data()
         R_VLem = tree.getNode(f"{data}.PPS_R.voltage.filtered").getData().data()
-        R_Vpps = tree.getNode(f"{data}.PPS_R.voltage_PWM.filtered").getData().data()
-        R_VFB = tree.getNode(f"{data}.PPS_R.feedback_dmd.filtered").getData().data()
+        R_Vpps = tree.getNode(f"{data}.PPS_R.voltage_PWM.signal").getData().data()
+        R_VFB = tree.getNode(f"{data}.PPS_R.feedback_dmd.signal").getData().data()
+
         time = tree.getNode(f"{data}.PPS_L.demand.filtered").dim_of().data() * 1e3 # ms
 
         # save
@@ -109,41 +107,49 @@ class BiasPPS:
         self.L_Dem  = L_Dem
         self.L_ILem = L_ILem
         self.L_VLem = L_VLem
-        self.L_Vpps = L_Vpps
-        self.L_VFB  = L_VFB
+        self.L_Vpps = L_Vpps * self.VFBK_gain
+        self.L_VFB  = L_VFB * self.VFBK_gain
         self.R_Dem  = R_Dem
         self.R_ILem = R_ILem
         self.R_VLem = R_VLem
-        self.R_Vpps = R_Vpps
-        self.R_VFB  = R_VFB
+        self.R_Vpps = R_Vpps * self.VFBK_gain
+        self.R_VFB  = R_VFB * self.VFBK_gain
 
-    def smooth(self, win=51, poly=3):
 
-        self.LVs = savgol(self.L_VLem,win,poly)
-        self.LIs = savgol(self.L_ILem,win,poly)
-        self.RVs = savgol(self.R_VLem,win,poly)
-        self.RIs = savgol(self.R_ILem,win,poly)
+        # load raw data
+        raw = "raw.acq196_370"
+        self.raw_L_Dem = tree.getNode (f"{raw}.ch_01").getData().data()
+        self.raw_L_ILem = tree.getNode(f"{raw}.ch_02").getData().data()
+        self.raw_L_VLem = tree.getNode(f"{raw}.ch_03").getData().data()
+        self.raw_L_Vpps = tree.getNode(f"{raw}.ch_04").getData().data()
+        self.raw_L_VFB = tree.getNode (f"{raw}.ch_05").getData().data()
+        self.raw_R_Dem = tree.getNode (f"{raw}.ch_06").getData().data()
+        self.raw_R_ILem = tree.getNode(f"{raw}.ch_07").getData().data()
+        self.raw_R_VLem = tree.getNode(f"{raw}.ch_08").getData().data()
+        self.raw_R_Vpps = tree.getNode(f"{raw}.ch_09").getData().data()
+        self.raw_R_VFB = tree.getNode (f"{raw}.ch_10").getData().data()
+        self.trigger = tree.getNode (f"{raw}.ch_11").getData().data()
 
     def plot_raw(self):
-        fig, axs = plt.subplots(2,1,figsize=(8,5))
+        fig, axs = plt.subplots(2,1,figsize=(8,5), sharex=True)
 
-        axs[0].plot(self.time, self.raw_L_Dem, lw=0.3, label="Limiter Demand")
-        axs[0].plot(self.time, self.raw_L_Vpps, lw=0.3, label="Voltage PPS")
-        axs[0].plot(self.time, self.raw_L_ILem, lw=0.3, label="Current LEM")
-        axs[0].plot(self.time, self.raw_L_VLem, lw=0.3, label="Voltage LEM")
-        axs[0].plot(self.time, self.raw_L_VFB , lw=0.3, label="Feedback Output")
-        
-        axs[1].plot(self.time, self.raw_R_Dem, lw=0.3, label="Ring Demand")
-        axs[1].plot(self.time, self.raw_R_Vpps, lw=0.3, label="Voltage PPS")
-        axs[1].plot(self.time, self.raw_R_ILem, lw=0.3, label="Current LEM")
-        axs[1].plot(self.time, self.raw_R_VLem, lw=0.3, label="Voltage LEM")
-        axs[1].plot(self.time, self.raw_R_VFB , lw=0.3, label="Feedback Output")
-        
+        axs[0].plot(self.time, self.raw_L_Dem, lw=0.5, label="Limiter Demand")
+        axs[0].plot(self.time, self.raw_L_Vpps, lw=0.5, label="Voltage PPS")
+        axs[0].plot(self.time, self.raw_L_ILem, lw=0.5, label="Current LEM")
+        axs[0].plot(self.time, self.raw_L_VLem, lw=0.5, label="Voltage LEM")
+        axs[0].plot(self.time, self.raw_L_VFB , lw=0.5, label="Feedback Output")
+
+        axs[1].plot(self.time, self.raw_R_Dem, lw=0.5, label="Ring Demand")
+        axs[1].plot(self.time, self.raw_R_Vpps, lw=0.5, label="Voltage PPS")
+        axs[1].plot(self.time, self.raw_R_ILem, lw=0.5, label="Current LEM")
+        axs[1].plot(self.time, self.raw_R_VLem, lw=0.5, label="Voltage LEM")
+        axs[1].plot(self.time, self.raw_R_VFB , lw=0.5, label="Feedback Output")
+
         axs[0].set_title(f"Raw Data: {self.shot}")
         axs[-1].set_xlabel('ms')
         axs[0].legend()
         axs[1].legend()
-        
+
         for a in axs:
             a.grid()
 
@@ -151,30 +157,30 @@ class BiasPPS:
     def plot_PPS(self):
 
         fig, axs = plt.subplots(3,2, figsize=(10,8), sharex=True)
-        axs[0,0].plot(self.time, self.L_Dem , 'C0', lw=0.3, label="L Demand [V]")
-        axs[0,0].plot(self.time, self.L_VFB , 'C4', lw=0.3, label="Feedback Output [-V]")
-        axs[0,1].plot(self.time, self.R_VFB , 'C4', lw=0.3, label="Feedback Output [-V]")
-        axs[0,1].plot(self.time, self.R_Dem , 'C0', lw=0.3, label="R Demand [V]")
-        
-        axs[1,0].plot(self.time, self.L_ILem, 'C1', lw=0.3, label="L Current [A]")
-        axs[1,1].plot(self.time, self.R_ILem, 'C1', lw=0.3, label="R Current [A]")
-        
-        axs[2,0].plot(self.time, self.L_Vpps, 'C3', lw=0.3, label="L Voltage PPS [V]")
-        axs[2,1].plot(self.time, self.R_Vpps, 'C3', lw=0.3, label="R Voltage PPS [V]")
-        
-        axs[2,0].plot(self.time, self.L_VLem, 'C2', lw=0.3, label="L Voltage [V]")
-        axs[2,1].plot(self.time, self.R_VLem, 'C2', lw=0.3, label="R Voltage [V]")
-        
+        axs[0,0].plot(self.time, self.L_Dem , 'C0', lw=0.5, label="L Demand [V]")
+        axs[0,1].plot(self.time, self.R_Dem , 'C0', lw=0.5, label="R Demand [V]")
+        axs[0,0].plot(self.time, self.L_VFB , 'C4', lw=0.5, label="Feedback Output [-V]")
+        axs[0,1].plot(self.time, self.R_VFB , 'C4', lw=0.5, label="Feedback Output [-V]")
+
+        axs[1,0].plot(self.time, self.L_ILem, 'C1', lw=0.5, label="L Current [A]")
+        axs[1,1].plot(self.time, self.R_ILem, 'C1', lw=0.5, label="R Current [A]")
+
+        axs[2,0].plot(self.time, self.L_VLem, 'C2', lw=0.5, label="L Voltage [V]")
+        axs[2,1].plot(self.time, self.R_VLem, 'C2', lw=0.5, label="R Voltage [V]")
+
+        axs[2,0].plot(self.time, self.L_Vpps, 'C3', lw=0.5, label="L Voltage PPS [-V]")
+        axs[2,1].plot(self.time, self.R_Vpps, 'C3', lw=0.5, label="R Voltage PPS [-V]")
+
         fig.suptitle(self.shot)
         axs[0,0].set_title("Limiter")
         axs[0,1].set_title("Ring")
         axs[-1,0].set_xlabel('ms')
         axs[-1,1].set_xlabel('ms')
-        
+
         for a in np.ndarray.flatten(axs):
             a.legend(loc=1)
             a.grid()
-        
+
         fig.tight_layout()
 
 class Interferometer:
