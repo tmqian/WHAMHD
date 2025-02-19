@@ -682,7 +682,6 @@ class Gas:
     def __init__(self, shot):
 
         self.shot = shot
-
         self.load()
 
     def load(self):

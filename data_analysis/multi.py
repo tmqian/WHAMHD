@@ -49,12 +49,12 @@ def plot9(shot, fout="", plot_limiter_bias=False):
         ax = axs[2,1]
         if plot_limiter_bias:
             ax.plot(bias.time, bias.L_Dem*1e3, 'C0', label="Limiter Demand [mV]")
-            ax.plot(bias.time, bias.LVs, 'C1', label="Limiter Potential [V]")
-            ax.plot(bias.time, bias.LIs, 'C5', label="Limiter Current [A]")
+            ax.plot(bias.time, bias.L_VLem, 'C1', label="Limiter Potential [V]")
+            ax.plot(bias.time, bias.L_ILem, 'C5', label="Limiter Current [A]")
         else:
             ax.plot(bias.time, bias.R_Dem*1e3, 'C0', label="Ring Demand [mV]")
-            ax.plot(bias.time, bias.RVs, 'C1', label="Ring Potential [V]")
-            ax.plot(bias.time, bias.RIs * 100, 'C5', label="100x Ring Current [A]")
+            ax.plot(bias.time, bias.R_VLem, 'C1', label="Ring Potential [V]")
+            ax.plot(bias.time, bias.R_ILem, 'C5', label="Ring Current [A]")
     except:
         print(f"Issue with Bias {shot}")
     
