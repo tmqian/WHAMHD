@@ -414,77 +414,27 @@ class ECH:
             ):
 
         self.shot = shot
-
-        # filter options
-        self.fft = fft
-        self.median = median
-        self.mean = mean
-        self.downsample_rate = downsample_rate
-  
-        import ech_plotting_helpers as f_ech
-        self.func = f_ech
-
-        self.old = False # legacy
         self.load()
 
     def load(self):
 
         tree = mds.Tree("wham",self.shot)
 
-        kwargs = { "do_fft_filt" : self.fft,
-                   "do_med_filt" : self.median,
-                   "do_mean_filt" : self.mean,
-                   "downsample_rate" : self.downsample_rate,
-                   "old" : self.old }
-        shot = self.shot
+        source = "ech.ech_proc"
+        self.Fwg_filt = tree.getNode(f"{source}.wg_monitor_f.filtered").getData().data()
+        self.Rwg_filt = tree.getNode(f"{source}.wg_monitor_r.filtered").getData().data()
+        self.Vs_filt =  tree.getNode(f"{source}.ves_monitor.filtered").getData().data()
+        self.time = tree.getNode(f"{source}.wg_monitor_f.filtered").dim_of().data()
 
-        # Gyrotron Voltage
-        V_t,V_filt,V = self.func.get_ech_signal("gyrotron_v",shot, **kwargs)
-        self.V_filt = V_filt / 1e3 # convert to kV
-        self.V = V / 1e3 # convert to kV
-
-        # Gyrotron Current
-        It,I_filt,I = self.func.get_ech_signal("gyrotron_i",shot, **kwargs)
-        # wave guide forward power
-        Fwg_t,Fwg_filt,Fwg = self.func.get_ech_signal("WG_monitor_F",shot, **kwargs)
-        # wave guide reflected power
-        Rwg_t,Rwg_filt,Rwg = self.func.get_ech_signal("WG_monitor_R",shot, **kwargs)
-        # wave guide bias voltage
-        Vwg_t,Vwg_filt,Vwg = self.func.get_ech_signal("wgd_bias_v",shot, **kwargs)
-        # dummy load forward power
-        Fdl_t,Fdl_filt,Fdl = self.func.get_ech_signal("DL_monitor_F",shot, **kwargs)
-        # vessel stray power
-        Vs_t,Vs_filt,Vs = self.func.get_ech_signal("ves_monitor",shot, **kwargs)
-
-        # save
-        self.time = V_t
-        self.t_bias = Vwg_t
-
-        self.I_filt = I_filt
-        self.Fwg_filt = Fwg_filt
-        self.Rwg_filt = Rwg_filt
-        self.Fdl_filt = Fdl_filt
-        self.Vwg_filt = Vwg_filt
-        self.Vs_filt = Vs_filt
-
-        self.I = I
-        self.Fwg = Fwg
-        self.Rwg = Rwg
-        self.Fdl = Fdl
-        self.Vwg = Vwg
-        self.Vs = Vs
-
-
-        #Read gyrotron parameters from MDSplus
-        self.cryo_I = tree.getNode("ech.ech_params.cryomag_I").getData().data()
-        self.fil_I = tree.getNode("ech.ech_params.filament_I").getData().data()
-        self.gun_I = tree.getNode("ech.ech_params.gun_coil_I").getData().data()
-        self.HVPS_V = tree.getNode("ech.ech_params.HVPS_V").getData().data()
-        self.ech_target = tree.getNode("ech.ech_params.ech_target").getData().data()
-        self.pol_ang_1 = tree.getNode("ech.ech_params.pol_ang_1").getData().data()
-        self.pol_ang_2 = tree.getNode("ech.ech_params.pol_ang_2").getData().data()
-#        self.mir_ang = tree.getNode("ech.ech_params.mirror_ang").getData().data()
-
+        # Read gyrotron parameters from MDSplus
+        params = "ech.ech_params"
+        self.cryo_I = tree.getNode(f"{params}.cryomag_I").getData().data()
+        self.fil_I = tree.getNode(f"{params}.filament_I").getData().data()
+        self.gun_I = tree.getNode(f"{params}.gun_coil_I").getData().data()
+        self.HVPS_V = tree.getNode(f"{params}.HVPS_V").getData().data()
+        self.ech_target = tree.getNode(f"{params}.ech_target").getData().data()
+        self.pol_ang_1 = tree.getNode(f"{params}.pol_ang_1").getData().data()
+        self.pol_ang_2 = tree.getNode(f"{params}.pol_ang_2").getData().data()
 
     def plot(self):
         fig,axs = plt.subplots(3,1, sharex=True, figsize=(8,6))
