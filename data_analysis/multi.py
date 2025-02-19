@@ -47,14 +47,13 @@ def plot9(shot, fout="", plot_limiter_bias=False):
     try:
         bias = BiasPPS(shot)
         ax = axs[2,1]
-        if plot_limiter_bias:
-            ax.plot(bias.time, bias.L_Dem*1e3, 'C0', label="Limiter Demand [mV]")
-            ax.plot(bias.time, bias.L_VLem, 'C1', label="Limiter Potential [V]")
-            ax.plot(bias.time, bias.L_ILem, 'C5', label="Limiter Current [A]")
-        else:
-            ax.plot(bias.time, bias.R_Dem*1e3, 'C0', label="Ring Demand [mV]")
-            ax.plot(bias.time, bias.R_VLem, 'C1', label="Ring Potential [V]")
-            ax.plot(bias.time, bias.R_ILem, 'C5', label="Ring Current [A]")
+        ax.plot(bias.time, bias.L_Dem*1e3, 'C0', label="Limiter Demand [mV]")
+        ax.plot(bias.time, bias.L_VLem, 'C1', label="Limiter Potential [V]")
+        ax.plot(bias.time, bias.L_ILem, 'C5', label="Limiter Current [A]")
+        ax = axs[2,2]
+        ax.plot(bias.time, bias.R_Dem*1e3, 'C0', label="Ring Demand [mV]")
+        ax.plot(bias.time, bias.R_VLem, 'C1', label="Ring Potential [V]")
+        ax.plot(bias.time, bias.R_ILem, 'C5', label="Ring Current [A]")
     except:
         print(f"Issue with Bias {shot}")
     
@@ -83,18 +82,19 @@ def plot9(shot, fout="", plot_limiter_bias=False):
     #    print(f"Issue with End Ring {shot}")
 
     # edge probe
-    try:
-        edge = EdgeProbes(shot)
-        for j in [0,3,11]:
-            axs[1,2].plot(edge.time, edge.ProbeArr[j], color=probe_map[j], label=f"Edge Probe {j} [V]")
-    except:
-        print(f"Issue with Edge probe {shot}")
+#    try:
+#        edge = EdgeProbes(shot)
+#        for j in [0,3,11]:
+#            axs[1,2].plot(edge.time, edge.ProbeArr[j], color=probe_map[j], label=f"Edge Probe {j} [V]")
+#    except:
+#        print(f"Issue with Edge probe {shot}")
 
     # gas
     try:
         gas = Gas(shot)
-        axs[2,0].plot(gas.t_asdex, gas.asdex_hi*1e3, 'C2', label=r"asdex [mTorr]")
-        axs[2,0].plot(gas.t_asdex, gas.asdex_lo*1e3, 'C1')
+        ax = axs[2,0]
+        ax.plot(gas.t_asdex, gas.asdex_hi*1e3, 'C2', label=r"asdex [mTorr]")
+        ax.plot(gas.t_asdex, gas.asdex_lo*1e3, 'C1')
     except:
         print(f"Issue with gas {shot}")
     
@@ -117,10 +117,10 @@ def plot9(shot, fout="", plot_limiter_bias=False):
         ax.plot(nbi.time, nbi.V_Beam, label="NBI Voltage [kV]")
         ax.plot(nbi.time, nbi.I_Beam, label="NBI Current [A]")
 
-        ax = axs[2,2]
-        ax.plot(nbi.time, nbi.d2, 'C0', label="Shine Through 2 [arb]")
-        ax.plot(nbi.time, nbi.d5, 'C4', label="Shine Through 5 [arb]")
-        ax.plot(nbi.time, nbi.d10, 'C2', label="Shine Through 10 [arb]")
+        ax = axs[1,2]
+        ax.plot(nbi.time, nbi.d2 *1e3, 'C0', label="Shine Through 2 [mA]")
+        ax.plot(nbi.time, nbi.d5 *1e3, 'C4', label="Shine Through 5 [mA]")
+        ax.plot(nbi.time, nbi.d10 *1e3, 'C2', label="Shine Through 10 [mA]")
     except:
         print(f"Issue with NBI {shot}")
 

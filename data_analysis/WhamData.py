@@ -686,6 +686,8 @@ class Gas:
 
     def load(self):
 
+        tree = mds.Tree("wham",self.shot)
+
         gasDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
         mainDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
         baffleDmd = tree.getNode("fueling.cmd_wvfrms.baffle").getData().data() 
@@ -696,25 +698,25 @@ class Gas:
         gasDmd = mainDmd
         t_puff = tree.getNode("fueling.cmd_wvfrms.main").dim_of().data()
         t_nec = tree.getNode("fueling.cmd_wvfrms.nec").dim_of().data() 
-        t_asdex = tree.getNode("fueling.asdex_gauge.1x.signal").dim_of().data()
-        t_redIon = tree.getNode("raw.diag_rp_01.rp_04.ch_01").dim_of().data()
 
-        asdex1 = tree.getNode("fueling.asdex_gauge.10x.signal").getData().data()
-        asdex2 = tree.getNode("fueling.asdex_gauge.1x.signal").getData().data()
-        redIon = tree.getNode("raw.diag_rp_01.rp_04.ch_01").getData().data()
+        try:
+            asdex1 = tree.getNode("fueling.oscar_gauge.x10.signal").getData().data()
+            asdex2 = tree.getNode("fueling.oscar_gauge.x1.signal").getData().data()
+            t_asdex = tree.getNode("fueling.oscar_gauge.x1.signal").dim_of().data()
+        except:
+            print("oscar gauge not found, trying asdex gauge")
+            asdex1 = tree.getNode("fueling.oscar_gauge.10x.signal").getData().data()
+            asdex2 = tree.getNode("fueling.oscar_gauge.1x.signal").getData().data()
+            t_asdex = tree.getNode("fueling.asdex_gauge.1x.signal").dim_of().data()
 
-        freq2 = tree.getNode("raw.diag_rp_01.rp_02.freq").getData().data()
-        freq4 = tree.getNode("raw.diag_rp_01.rp_04.freq").getData().data()
         trig = tree.getNode("raw.diag_rp_01.trig_time").getData().data()
 
-        self.t_redIon = (t_redIon / freq4 + trig) * 1e3
         self.t_puff = t_puff * 1e3 # ms
         self.t_asdex = t_asdex * 1e3 # ms
         self.t_nec = t_nec * 1e3 # ms
 
         self.asdex_lo = asdex1 # Torr
         self.asdex_hi = asdex2
-        self.redIon = redIon * -2.5e-4 # Torr
         self.gasDmd = gasDmd
         self.mainDmd = mainDmd
         self.baffleDmd = baffleDmd
