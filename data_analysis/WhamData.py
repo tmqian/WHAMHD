@@ -831,7 +831,10 @@ class EndRing:
         N_ring = len(self.ProbeArr)
         for j in range(N_ring):
             ax0.plot(self.time, self.ProbeArr[j], f"C{j}", lw=0.5)
-            ax0.plot(self.time, self.SmoothArr[j], f"C{j}", label=f"Ring {j+1}")
+            if j>0:
+                ax0.plot(self.time, self.SmoothArr[j], f"C{j}", label=f"Ring {j}")
+            else:
+                ax0.plot(self.time, self.SmoothArr[j], f"C{j}", label=f"Disk 0")
 
         ax0.set_xlabel("time [ms]")
         ax0.set_title("floating potential [V]", fontsize=12)
@@ -862,3 +865,5 @@ class EndRing:
 
         fig.suptitle(self.shot)
         fig.tight_layout()
+
+        return fig,axs, ax0
