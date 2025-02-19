@@ -136,72 +136,6 @@ def parseArgs(logger):
 
 ######################################################
 
-def findFnameFromShotnum(logger,shot):
-
-    # Extract yr/mo/dy info from shotnum
-    shotnum = int(shot)
-    shotstr = str(shot)
-    yr = shotstr[:2]; mo = shotstr[2:4]; dy = shotstr[4:6]
-
-    # import shottime from mdsplus wham tree
-    shottime = mds.Tree('wham',shotnum).getNode('\wham::top.shot_params:t0_time').getData().data()
-    # time in seconds since start of day
-    sSec = int(shottime[:2])*3600 + int(shottime[3:5])*60 + int(shottime[6:8])
-
-    # open directory for the day
-    #speFilePath = '/mnt/n/whamdata/optical_spectroscopy/'+yr+'/'+mo+'/'+dy+'/'
-    speFilePath = '/mnt/n/whamdata/optical_spectroscopy/'+yr+mo+dy+'/'
-
-    for fname1 in os.listdir(speFilePath):
-        if 'WHAM2' in fname1:
-            continue
-        # File creation time
-        tFile = time.localtime(os.path.getctime(speFilePath+fname1))
-        yr,mo,dy,hr,mn,sc = time.strftime('%y,%m,%d,%H,%M,%S',tFile).split(',')
-        # time in seconds since start of day
-        tSec = int(hr)*3600 + int(mn)*60 + int(sc)
-        # time difference between shot and file creation
-        dt = tSec - sSec;# print('dt = ',dt)
-        if -10 < dt and dt < 10:
-            logger.info('dt = {:1.0f} [s]'.format(dt))
-            logger.info(fname1)
-            logger.info(('This file corresponds to shot '+shotstr))
-            # This is the correct fname. Stop the for loop
-            break
-        else:
-            continue
-    # Need to handle an exception if no time matches. Should return fname = ''
-    if np.abs(dt) > 10:
-        fname1 = None
-        logger.info('No file match found')
-
-    for fname2 in os.listdir(speFilePath):
-        if 'WHAM1' in fname2:
-            continue
-        # File creation time
-        tFile = time.localtime(os.path.getctime(speFilePath+fname2))
-        yr,mo,dy,hr,mn,sc = time.strftime('%y,%m,%d,%H,%M,%S',tFile).split(',')
-        # time in seconds since start of day
-        tSec = int(hr)*3600 + int(mn)*60 + int(sc)
-        # time difference between shot and file creation
-        dt = tSec - sSec;# print('dt = ',dt)
-        if -10 < dt and dt < 10:
-            logger.info('dt = {:1.0f} [s]'.format(dt))
-            logger.info(fname2)
-            logger.info(('This file corresponds to shot '+shotstr))
-            # This is the correct fname. Stop the for loop
-            break
-        else:
-            continue
-    # Need to handle an exception if no time matches. Should return fname = ''
-    if np.abs(dt) > 10:
-        fname2 = None
-        logger.info('No file match found')
-
-    return speFilePath+fname1, speFilePath+fname2
-
-######################################################
-
 
 def squaresum(x, y):
     return np.sqrt(x * x + y * y)
@@ -411,6 +345,8 @@ def process(filename,args,savefig=True):
     data.coords['filename'] = filename
     data.coords['los'] = 'roi', [LOS[r.item()] for r in data['roi']]
 
+    import pdb 
+    pdb.set_trace()
     resultsC = []
     for roi in range(data.sizes['roi']):
         resultsC.append(fit_CIII(data.isel(roi=roi), data.isel(roi=roi)['roi'].item()))
@@ -435,13 +371,24 @@ def process(filename,args,savefig=True):
 
 class Spectrometer:
 
-    def __init__(self,shot):
+    def __init__(self,shot,
+                      root="/mnt/n/whamdata/optical_spectroscopy/SPEs",
+                 ):
 
         self.shot = shot
 
-        logger = initialize_logger(logPath)
-        fname1,fname2 = findFnameFromShotnum(logger,int(shot))
-        self.results = process(fname2,shot,savefig=False)
+        # parse
+        year = shot[:2]
+        month = shot[2:4]
+        day = shot[4:6]
+        path = f"{root}/{year}/{month}/{day}"
+
+        f1 = f"{path}/WHAM1_{shot}.spe"
+        f2 = f"{path}/WHAM2_{shot}.spe"
+
+        #logger = initialize_logger(logPath)
+        #fname1,fname2 = findFnameFromShotnum(logger,int(shot))
+        self.results = process(f2,shot,savefig=False)
 
         self.C = self.results.sel(line='CIII')
         self.LOS = LOS
