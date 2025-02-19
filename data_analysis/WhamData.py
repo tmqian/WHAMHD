@@ -424,7 +424,7 @@ class ECH:
         self.Fwg_filt = tree.getNode(f"{source}.wg_monitor_f.filtered").getData().data()
         self.Rwg_filt = tree.getNode(f"{source}.wg_monitor_r.filtered").getData().data()
         self.Vs_filt =  tree.getNode(f"{source}.ves_monitor.filtered").getData().data()
-        self.time = tree.getNode(f"{source}.wg_monitor_f.filtered").dim_of().data()
+        self.time = tree.getNode(f"{source}.wg_monitor_f.filtered").dim_of().data() * 1e3 # ms
 
         # Read gyrotron parameters from MDSplus
         params = "ech.ech_params"
