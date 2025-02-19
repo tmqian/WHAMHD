@@ -1,4 +1,3 @@
-
 import sys
 import os
 import warnings
@@ -21,14 +20,6 @@ def get_color_index(V, M=80):
     idx = np.argmin(np.abs(V - input_ax))
     return idx
 
-# Logging path
-logName = 'get_doppler_shift'
-logDir = '/home/WHAMdata/wham-data-scripts/logs/'
-logPath = logDir + logName + '.log'
-
-# Directory where the data files are stored
-#pulseDirectory = '/data/'
-rawDirectory = '/mnt/n/optical_spectroscopy/'
 
 # Physics constants
 mC = 1.9944236560726842e-26  # mass of carbon in kg
@@ -83,59 +74,6 @@ WL_DX0STD = 0.002869  # error in the instrumental width
 
 ######################################################
 
-def initialize_logger(path):
-
-# Create a logger for this file.
-    logger = logging.getLogger(logName)
-    logger.setLevel(logging.DEBUG)
-# Capture other warnings
-    logging.captureWarnings(True)
-# Create a file handler to write to.
-    file_handler = logging.FileHandler(path, "w")
-
-    file_handler.setLevel(logging.DEBUG)
-# Create a formatter to make the logging look nice.
-    formatter = logging.Formatter('%(asctime)s, %(name)s - %(levelname)s: %(message)s')
-    file_handler.setFormatter(formatter)
-# Add the file handler to the logger.
-    logger.addHandler(file_handler)
-
-    logger.info('Logger file created')
-
-    return logger
-
-######################################################
-
-def parseArgs(logger):
-#    """
-#    This function gets the shot number if specified and then runs the post processing script.
-#    """
-
-    logger.info('parseArgs')
-
-    # Create a parser object that allows us to pass multiple arguments of various types into run_single_shot with 1 object
-    parser = argparse.ArgumentParser(description='post processing script arguments')
-    # Shot number
-    parser.add_argument('-s','--shotnum', metavar = 'shot number', type=int, default=0,
-                        help = 'Shot number to post-process. If not specified, latest shot is post-processed by getting shot number from andrew')
-    # Reference shot number
-    parser.add_argument('-p','--plot', metavar = 'plot boolean', type=int, default=0,
-            help = 'If 1, will show plots. Default is 0')
-
-    try:
-        args = parser.parse_args()
-        logger.info('parser.parse_args succeeded?')
-    except Exception as e:
-        logger.error(e)
-
-    logger.info(vars(args))
-
-    logger.info('Arguments parsed.')
-
-    return args
-
-######################################################
-
 
 def squaresum(x, y):
     return np.sqrt(x * x + y * y)
@@ -143,14 +81,12 @@ def squaresum(x, y):
 def normal(x):
     return 1 / np.sqrt(2.0 * np.pi) * np.exp(-0.5 * x ** 2)
 
-
 def Gauss(x, A, x0, sigma, offset):
     """
     Standard Gaussian function with area A, centroid x0, 
     standard deviation sigma, and offset.
     """
     return normal((x - x0) / sigma) / sigma * A + offset
-
 
 def twogauss(x, A, x0, w, y0, alpha, dx0, dx1, w0, w1):
     return A * (
@@ -345,8 +281,6 @@ def process(filename,args,savefig=True):
     data.coords['filename'] = filename
     data.coords['los'] = 'roi', [LOS[r.item()] for r in data['roi']]
 
-    import pdb 
-    pdb.set_trace()
     resultsC = []
     for roi in range(data.sizes['roi']):
         resultsC.append(fit_CIII(data.isel(roi=roi), data.isel(roi=roi)['roi'].item()))
@@ -376,8 +310,6 @@ class Spectrometer:
                  ):
 
         self.shot = shot
-
-        # parse
         year = shot[:2]
         month = shot[2:4]
         day = shot[4:6]
@@ -386,8 +318,6 @@ class Spectrometer:
         f1 = f"{path}/WHAM1_{shot}.spe"
         f2 = f"{path}/WHAM2_{shot}.spe"
 
-        #logger = initialize_logger(logPath)
-        #fname1,fname2 = findFnameFromShotnum(logger,int(shot))
         self.results = process(f2,shot,savefig=False)
 
         self.C = self.results.sel(line='CIII')
