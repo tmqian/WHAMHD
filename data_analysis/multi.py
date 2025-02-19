@@ -233,21 +233,21 @@ def plot6(shot, axs=None, plotLimiter=True):
 
         if plotLimiter:
             j1,j2 = get_time_index(bias.time, 7,9)
-            V_ring = np.mean(bias.LVs[j1:j2])
-            I_ring = np.mean(bias.LIs[j1:j2])
-            axs[3].plot(bias.time, bias.LVs)
+            V_ring = np.mean(bias.L_VLem[j1:j2])
+            I_ring = np.mean(bias.L_ILem[j1:j2])
+            axs[3].plot(bias.time, bias.L_VLem)
             axs[3].set_title(r"Limiter Potential [V]")
-            axs[4].plot(bias.time, bias.LIs)
+            axs[4].plot(bias.time, bias.L_ILem)
             axs[4].set_title(r"Limiter Current [A]")
 
         else:
 
             j1,j2 = get_time_index(bias.time, 7,9)
-            V_ring = np.mean(bias.RVs[j1:j2])
-            I_ring = np.mean(bias.RIs[j1:j2])
-            axs[3].plot(bias.time, bias.RVs)
+            V_ring = np.mean(bias.R_VLem[j1:j2])
+            I_ring = np.mean(bias.R_ILem[j1:j2])
+            axs[3].plot(bias.time, bias.R_VLem)
             axs[3].set_title(r"Ring Potential [V]")
-            axs[4].plot(bias.time, bias.RIs)
+            axs[4].plot(bias.time, bias.R_Ilem)
             axs[4].set_title(r"Ring Current [A]")
 
     except:
