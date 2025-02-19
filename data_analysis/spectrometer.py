@@ -3,10 +3,11 @@ import sys
 import matplotlib.pyplot as plt
 
 '''
-Copied from 0924 analysis
+Works on Jack, reading data from NAS
+2/18/2025 TQ
 '''
 
-shot = int(sys.argv[1])
+shot = sys.argv[1]
 spec = Spectrometer(shot)
 
 spec.plot_Vi_T_CIII()

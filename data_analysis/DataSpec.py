@@ -1,4 +1,3 @@
-
 import sys
 import os
 import warnings
@@ -21,14 +20,6 @@ def get_color_index(V, M=80):
     idx = np.argmin(np.abs(V - input_ax))
     return idx
 
-# Logging path
-logName = 'get_doppler_shift'
-logDir = '/home/WHAMdata/wham-data-scripts/logs/'
-logPath = logDir + logName + '.log'
-
-# Directory where the data files are stored
-#pulseDirectory = '/data/'
-rawDirectory = '/mnt/n/optical_spectroscopy/'
 
 # Physics constants
 mC = 1.9944236560726842e-26  # mass of carbon in kg
@@ -83,125 +74,6 @@ WL_DX0STD = 0.002869  # error in the instrumental width
 
 ######################################################
 
-def initialize_logger(path):
-
-# Create a logger for this file.
-    logger = logging.getLogger(logName)
-    logger.setLevel(logging.DEBUG)
-# Capture other warnings
-    logging.captureWarnings(True)
-# Create a file handler to write to.
-    file_handler = logging.FileHandler(path, "w")
-
-    file_handler.setLevel(logging.DEBUG)
-# Create a formatter to make the logging look nice.
-    formatter = logging.Formatter('%(asctime)s, %(name)s - %(levelname)s: %(message)s')
-    file_handler.setFormatter(formatter)
-# Add the file handler to the logger.
-    logger.addHandler(file_handler)
-
-    logger.info('Logger file created')
-
-    return logger
-
-######################################################
-
-def parseArgs(logger):
-#    """
-#    This function gets the shot number if specified and then runs the post processing script.
-#    """
-
-    logger.info('parseArgs')
-
-    # Create a parser object that allows us to pass multiple arguments of various types into run_single_shot with 1 object
-    parser = argparse.ArgumentParser(description='post processing script arguments')
-    # Shot number
-    parser.add_argument('-s','--shotnum', metavar = 'shot number', type=int, default=0,
-                        help = 'Shot number to post-process. If not specified, latest shot is post-processed by getting shot number from andrew')
-    # Reference shot number
-    parser.add_argument('-p','--plot', metavar = 'plot boolean', type=int, default=0,
-            help = 'If 1, will show plots. Default is 0')
-
-    try:
-        args = parser.parse_args()
-        logger.info('parser.parse_args succeeded?')
-    except Exception as e:
-        logger.error(e)
-
-    logger.info(vars(args))
-
-    logger.info('Arguments parsed.')
-
-    return args
-
-######################################################
-
-def findFnameFromShotnum(logger,shot):
-
-    # Extract yr/mo/dy info from shotnum
-    shotnum = int(shot)
-    shotstr = str(shot)
-    yr = shotstr[:2]; mo = shotstr[2:4]; dy = shotstr[4:6]
-
-    # import shottime from mdsplus wham tree
-    shottime = mds.Tree('wham',shotnum).getNode('\wham::top.shot_params:t0_time').getData().data()
-    # time in seconds since start of day
-    sSec = int(shottime[:2])*3600 + int(shottime[3:5])*60 + int(shottime[6:8])
-
-    # open directory for the day
-    #speFilePath = '/mnt/n/whamdata/optical_spectroscopy/'+yr+'/'+mo+'/'+dy+'/'
-    speFilePath = '/mnt/n/whamdata/optical_spectroscopy/'+yr+mo+dy+'/'
-
-    for fname1 in os.listdir(speFilePath):
-        if 'WHAM2' in fname1:
-            continue
-        # File creation time
-        tFile = time.localtime(os.path.getctime(speFilePath+fname1))
-        yr,mo,dy,hr,mn,sc = time.strftime('%y,%m,%d,%H,%M,%S',tFile).split(',')
-        # time in seconds since start of day
-        tSec = int(hr)*3600 + int(mn)*60 + int(sc)
-        # time difference between shot and file creation
-        dt = tSec - sSec;# print('dt = ',dt)
-        if -10 < dt and dt < 10:
-            logger.info('dt = {:1.0f} [s]'.format(dt))
-            logger.info(fname1)
-            logger.info(('This file corresponds to shot '+shotstr))
-            # This is the correct fname. Stop the for loop
-            break
-        else:
-            continue
-    # Need to handle an exception if no time matches. Should return fname = ''
-    if np.abs(dt) > 10:
-        fname1 = None
-        logger.info('No file match found')
-
-    for fname2 in os.listdir(speFilePath):
-        if 'WHAM1' in fname2:
-            continue
-        # File creation time
-        tFile = time.localtime(os.path.getctime(speFilePath+fname2))
-        yr,mo,dy,hr,mn,sc = time.strftime('%y,%m,%d,%H,%M,%S',tFile).split(',')
-        # time in seconds since start of day
-        tSec = int(hr)*3600 + int(mn)*60 + int(sc)
-        # time difference between shot and file creation
-        dt = tSec - sSec;# print('dt = ',dt)
-        if -10 < dt and dt < 10:
-            logger.info('dt = {:1.0f} [s]'.format(dt))
-            logger.info(fname2)
-            logger.info(('This file corresponds to shot '+shotstr))
-            # This is the correct fname. Stop the for loop
-            break
-        else:
-            continue
-    # Need to handle an exception if no time matches. Should return fname = ''
-    if np.abs(dt) > 10:
-        fname2 = None
-        logger.info('No file match found')
-
-    return speFilePath+fname1, speFilePath+fname2
-
-######################################################
-
 
 def squaresum(x, y):
     return np.sqrt(x * x + y * y)
@@ -209,14 +81,12 @@ def squaresum(x, y):
 def normal(x):
     return 1 / np.sqrt(2.0 * np.pi) * np.exp(-0.5 * x ** 2)
 
-
 def Gauss(x, A, x0, sigma, offset):
     """
     Standard Gaussian function with area A, centroid x0, 
     standard deviation sigma, and offset.
     """
     return normal((x - x0) / sigma) / sigma * A + offset
-
 
 def twogauss(x, A, x0, w, y0, alpha, dx0, dx1, w0, w1):
     return A * (
@@ -435,13 +305,20 @@ def process(filename,args,savefig=True):
 
 class Spectrometer:
 
-    def __init__(self,shot):
+    def __init__(self,shot,
+                      root="/mnt/n/whamdata/optical_spectroscopy/SPEs",
+                 ):
 
         self.shot = shot
+        year = shot[:2]
+        month = shot[2:4]
+        day = shot[4:6]
+        path = f"{root}/{year}/{month}/{day}"
 
-        logger = initialize_logger(logPath)
-        fname1,fname2 = findFnameFromShotnum(logger,int(shot))
-        self.results = process(fname2,shot,savefig=False)
+        f1 = f"{path}/WHAM1_{shot}.spe"
+        f2 = f"{path}/WHAM2_{shot}.spe"
+
+        self.results = process(f2,shot,savefig=False)
 
         self.C = self.results.sel(line='CIII')
         self.LOS = LOS
