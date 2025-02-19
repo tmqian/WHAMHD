@@ -30,7 +30,7 @@ def get_time_index(time_axis, t1, t2):
     j2 = np.argmin(np.abs(time_axis - t2))
     return j1,j2
 
-def plot9(shot, fout="", plot_limiter_bias=False):
+def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
 
     fig, axs = plt.subplots(3,3,sharex=True, figsize=(13,9))
 
@@ -61,9 +61,9 @@ def plot9(shot, fout="", plot_limiter_bias=False):
     try:
         flux = FluxLoop(shot)
         ax = axs[0,1]
-        ax.plot(flux.time,flux.FL1,'C3', label="Flux Loop 1 [Mx]")
-        ax.plot(flux.time,flux.FL2,'C2', label="Flux Loop 2 [Mx]")
-        ax.plot(flux.time,flux.FL3,'C0', label="Flux Loop 3 [Mx]")
+        ax.plot(flux.time,flux.FL1/1e3,'C3', label="Flux Loop 1 [kMx]")
+        ax.plot(flux.time,flux.FL2/1e3,'C2', label="Flux Loop 2 [kMx]")
+        ax.plot(flux.time,flux.FL3/1e3,'C0', label="Flux Loop 3 [kMx]")
     except:
         print(f"Issue with Flux {shot}")
     
@@ -136,7 +136,11 @@ def plot9(shot, fout="", plot_limiter_bias=False):
     axs[-1,2].set_xlabel("time [ms]")
     axs[-1,0].set_xlim(-2,24)
 
-    fig.suptitle(shot)
+    if tag == "":
+        fig.suptitle(shot)
+    else:
+        fig.suptitle(tag)
+
     fig.tight_layout()
 
     if fout != "":
