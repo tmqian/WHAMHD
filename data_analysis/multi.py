@@ -84,9 +84,9 @@ def plot9(shot, fout="", plot_limiter_bias=False):
 
     # edge probe
     try:
-        edge = EdgeProbes(shot, RP=True, R1=270e3)
+        edge = EdgeProbes(shot)
         for j in [0,3,11]:
-            axs[1,2].plot(edge.TimeArr[j], edge.ProbeArr[j], color=probe_map[j], label=f"Edge Probe {j} [V]")
+            axs[1,2].plot(edge.time, edge.ProbeArr[j], color=probe_map[j], label=f"Edge Probe {j} [V]")
     except:
         print(f"Issue with Edge probe {shot}")
 

@@ -194,15 +194,12 @@ class Interferometer:
 
         tree = mds.Tree("wham",self.shot)
         linedens = tree.getNode("diag.interferomtr.linedens").getData().data() 
+        offset = np.mean(linedens[-2000:])
+
         time = tree.getNode("diag.interferomtr.time").getData().data() * 1e3
 
-        #time = time - 7.5 # ad hoc 0728
-        #time = 1.1*time + 1.2 # ad hoc 0721
-        #time = time - 6.5 # ad hoc 0730
-        #linedens *= -1
-
         self.time = time
-        self.linedens = linedens
+        self.linedens = linedens - offset
 
     def plot(self):
         fig,axs = plt.subplots(1,1,figsize=(10,5))
@@ -454,117 +451,26 @@ class ECH:
 
 class EdgeProbes:
 
-    def __init__(self, shot, R1=108e3,
+    def __init__(self, shot, R1=270e3,
                              R2=2.7e3,
-                             RP = False,
                              ):
 
         self.shot = shot
         self.V_factor = (R1+R2)/R2
-
-        if RP:
-            self.load_RP()
-        else:
-            self.load()
+        self.load()
 
     def load(self):
-        '''
-        loads from dtacq
-        should add alternative option for RedPitay and/or Rigol scope
-        '''
 
         tree = mds.Tree("wham",self.shot)
-        raw = "raw.acq196_370"
+        source = "diag.probe_ring"
 
-        ProbeArr = []
-        for j in range(20,32):
-            data = tree.getNode(f"{raw}.ch_{j+1:02d}").getData().data()
-            Vf = data * self.V_factor
-            #Vs = savgol(Vf,win,pol)
-        
-            ProbeArr.append(Vf)
-            #SmoothArr.append(Vs)
-        self.ProbeArr = np.array(ProbeArr)
-        #SmoothArr = np.array(SmoothArr)
-
-    def load_RP(self):
-        '''
-        loads from RedPitaya
-        should add alternative option for RedPitay and/or Rigol scope
-        '''
-
-        tree = mds.Tree("wham",self.shot)
-
-        def getScope(scope="TQ_SCOPE",ch=1):
-            try:
-                root = f"raw.{scope}"
-                node = f"{root}.ch_{ch:02d}"
-                trig = tree.getNode(f"{root}.trig_time").getData().data() # scalar offset [s]
-                freq = tree.getNode(f"{node}.freq").getData().data()
-                delay = tree.getNode(f"{node}.delay").getData().data()
-                arr = tree.getNode(f"{node}.signal").dim_of().data()
-                data = tree.getNode(f"{node}.signal").getData().data()
-    
-                time = (arr / freq + trig + delay) * 1e3 # convert to ms
-                signal = data * self.V_factor
-            except:
-                print(f"Problem with {node}")
-                time = np.linspace(0,20,100)
-                signal = np.zeros_like(time)
-
-            return signal, time
-
-        def getRP(rack=1,RP=1,ch=1):
-            root = f"raw.diag_rp_{rack:02d}"
-            node = f"{root}.rp_{RP:02d}"
-            trig = tree.getNode(f"{root}.trig_time").getData().data() # scalar offset [s]
-            freq = tree.getNode(f"{node}.freq").getData().data()
-            arr = tree.getNode(f"{node}.ch_{ch:02d}").dim_of().data()
-            data = tree.getNode(f"{node}.ch_{ch:02d}").getData().data()
-
-            time = (arr / freq + trig) * 1e3 # convert to ms
-            signal = data * self.V_factor
-            return signal, time
-
-        # for 0803
-        P01, T01 = getRP(RP=7,ch=1)
-        P02, T02 = getRP(RP=7,ch=2)
-        P03, T03 = getRP(RP=5,ch=1)
-        P04, T04 = getRP(RP=5,ch=2)
-        #P05, T05 = getRP(RP=3,ch=1)
-        #P06, T06 = getRP(RP=3,ch=2)
-        P05, T05 = getScope(scope="mason_ds1000", ch=3)
-        P06, T06 = getScope(scope="mason_ds1000", ch=4)
-        P07, T07 = getRP(RP=8,ch=1)
-        P08, T08 = getRP(RP=8,ch=2)
-        P09, T09 = getScope(scope="TQ_SCOPE",ch=1)
-        P10, T10 = getScope(scope="TQ_SCOPE",ch=2)
-        P11, T11 = getScope(scope="TQ_SCOPE",ch=3)
-        P12, T12 = getScope(scope="mason_scope",ch=4)
-        # for 0730
-        #P01, T01 = getRPdata(RP=7,ch=1)
-        #P02, T02 = getRPdata(RP=7,ch=2)
-        #P03, T03 = getRPdata(RP=5,ch=1)
-        #P04, T04 = getRPdata(RP=5,ch=2)
-        #P05, T05 = getRPdata(RP=8,ch=1)
-        #P06, T06 = getRPdata(RP=8,ch=2)
-        #P07, T07 = getRPdata(RP=3,ch=2)
-        #P08, T08 = getRPdata(RP=1,ch=1)
-        #P09, T09 = getRPdata(RP=2,ch=2)
-        #P10, T10 = getRPdata(RP=3,ch=1)
-        #P11 = np.zeros_like(P01)
-        #P12 = np.zeros_like(P01)
-        self.ProbeArr = [P01, P02, P03, P04, 
-                         P05, P06, P07, P08, 
-                         P09, P10, P11, P12]
-        self.TimeArr = [T01, T02, T03, T04, 
-                        T05, T06, T07, T08, 
-                        T09, T10, T11, T12]
+        self.ProbeArr = [ tree.getNode(f"{source}.P{j*30:03d}.voltage.signal").getData().data() for j in range(12) ]
+        self.time = tree.getNode(f"{source}.P000.voltage.signal").dim_of().data() * 1e3 # ms
 
     def plot(self):
         fig,axs = plt.subplots(1,1,figsize=(13,10),sharex=True)
         for j in range(12):
-            axs.plot(self.TimeArr[j], self.ProbeArr[j], label=f"Probe {j}")
+            axs.plot(self.time, self.ProbeArr[j], label=f"Probe {j}")
 
         axs.grid()
         axs.legend()
