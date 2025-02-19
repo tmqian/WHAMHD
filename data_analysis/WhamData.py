@@ -760,67 +760,28 @@ class EndRing:
         self.shot = shot
         self.load()
 
-    def load(self, R1=270e3, # upper voltage divider resistor, Ohm
-                   R2=2.7e3, # lower voltage divider resistor, Ohm
-                   win = 101, # savgol window
-                   pol = 3,   # savgol polynomial
-                   ):
+    def load(self):
 
         # set up tree
         tree = mds.Tree("wham",self.shot)
-        source = "raw.acq196_370"
+        source = "bias.end_rings"
 
-        try:
-            # used for voltage
-            bias = BiasPPS(self.shot)
-        except:
-            print(f"Issue with Bias {self.shot}")
-        # get source nodes, these are uploaded by the DTACQ
-        if self.shot < 241218000:
-            # this is the setting used for APS Sept 2024
-            idx = np.arange(20,30)[::-1] + 1 # channels 21-30
-            dtacq_arr = [ tree.getNode(f"{source}.ch_{j+1:02d}") for j in idx ]
-        elif self.shot >= 241218000:
-            idx = np.arange(21,31)
-            dtacq_arr = [ tree.getNode(f"{source}.ch_{j:02d}") for j in idx ]
-
-        t_delay = tree.getNode(f"{source}.trig_time").getData().data()
-        dtacq_time = dtacq_arr[0].getData().dim_of().data()
-        time = (dtacq_time + t_delay) * 1e3
-
-        # Get data
-        V_factor = (R1+R2)/R2
-
-        # zero offset
-        def zero_offset(f,idx=1000):
-            f -= np.mean(f[:idx])
-
-        # smooth signals
-        ProbeArr = []
-        SmoothArr = []
-        N_ring = 10
-        for j in range(N_ring):
-            Vf = dtacq_arr[j].getData().data() * V_factor
-            zero_offset(Vf)
-            Vs = savgol(Vf,win,pol)
-
-            ProbeArr.append(Vf)
-            SmoothArr.append(Vs)
-        ProbeArr = np.array(ProbeArr)
-        SmoothArr = np.array(SmoothArr)
+        ProbeArr = np.array([tree.getNode(f"{source}.N{j}.voltage.signal").getData().data() for j in range(10)])
+        SmoothArr = np.array([tree.getNode(f"{source}.N{j}.voltage.filtered").getData().data() for j in range(10)])
+        time = tree.getNode(f"{source}.N0.voltage.signal").dim_of().data() * 1e3 # ms
 
         # temp
-        SmoothArr[0] = bias.RVs
-        ProbeArr[0] = bias.R_VLem
+        #SmoothArr[0] = bias.RVs
+        #ProbeArr[0] = bias.R_VLem
 
-        rax = np.array([4.0,8.0,11.1,13.4,15.3,16.9,18.3,19.5,20.6,21.6]) # use bottom radii for rings 2-10, and middle for disk 1
+        # use bottom radii for rings 1-9, and middle for disk 0
+        rax = np.array([4.0,8.0,11.1,13.4,15.3,16.9,18.3,19.5,20.6,21.6]) 
 
         self.radii = rax
         self.mid = (rax[1:] + rax[:-1])/2
         self.ProbeArr = ProbeArr
         self.SmoothArr = SmoothArr
         self.time = time # ms
-
 
     def calc_rotation(self,t, B0=0.08):
         '''
@@ -874,7 +835,7 @@ class EndRing:
 
         ax0.set_xlabel("time [ms]")
         ax0.set_title("floating potential [V]", fontsize=12)
-        ax0.set_xlim(-1,20)
+        ax0.set_xlim(-1,32)
         ax0.set_ylim(1.05 * np.min(self.ProbeArr), np.max(self.ProbeArr)*1.2)
         ax0.grid()
         ax0.legend(loc=1, fontsize=7)
