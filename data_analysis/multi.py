@@ -51,9 +51,9 @@ def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
         ax.plot(bias.time, bias.L_VLem, 'C1', label="Limiter Potential [V]")
         ax.plot(bias.time, bias.L_ILem, 'C5', label="Limiter Current [A]")
         ax = axs[2,2]
-        ax.plot(bias.time, bias.R_Dem*1e3, 'C0', label="Ring Demand [mV]")
+        ax.plot(bias.time, bias.R_Dem*1e2, 'C0', label="Ring Demand [cV]")
         ax.plot(bias.time, bias.R_VLem, 'C1', label="Ring Potential [V]")
-        ax.plot(bias.time, bias.R_ILem, 'C5', label="Ring Current [A]")
+        ax.plot(bias.time, bias.R_ILem*10, 'C5', label="Ring Current [10x A]")
     except:
         print(f"Issue with Bias {shot}")
     
@@ -226,6 +226,7 @@ def plot6(shot, axs=None, plotLimiter=True):
     if axs is None:
         fig, axs = plt.subplots(6,1,sharex=True, figsize=(11,10))
 
+    tag = f"{shot}"
     # Bias plots
     try:
         bias = BiasPPS(shot)
@@ -247,11 +248,13 @@ def plot6(shot, axs=None, plotLimiter=True):
             I_ring = np.mean(bias.R_ILem[j1:j2])
             axs[3].plot(bias.time, bias.R_VLem)
             axs[3].set_title(r"Ring Potential [V]")
-            axs[4].plot(bias.time, bias.R_Ilem)
+            axs[4].plot(bias.time, bias.R_ILem)
             axs[4].set_title(r"Ring Current [A]")
 
+        tag += f", {V_ring:.1f}, {I_ring:.2f}"
     except:
         print(f"Issue with Bias {shot}")
+        tag += f", -, -"
 
     # ECH plots
     try:
@@ -261,8 +264,10 @@ def plot6(shot, axs=None, plotLimiter=True):
 
         j1,j2 = get_time_index(ech.time, 3,9)
         P_ech = np.mean(ech.Fwg_filt[j1:j2])
+        tag += f", {P_ech:.1f}"
     except:
         print(f"Issue with ECH {shot}")
+        tag += f", -"
 
     try:
         flux = FluxLoop(shot)
@@ -273,8 +278,10 @@ def plot6(shot, axs=None, plotLimiter=True):
         F = savgol(flux.FL1/1e3, win,poly)
         j1,j2 = get_time_index(flux.time, 8,11)
         F1 = np.max(F[j1:j2])
+        tag += f", {F1:.2f}"
     except:
         print(f"Issue with Flux Loop {shot}")
+        tag += f", -"
 
     try:
         intf = Interferometer(shot)
@@ -283,8 +290,10 @@ def plot6(shot, axs=None, plotLimiter=True):
 
         j1,j2 = get_time_index(intf.time, 5,9)
         N_int = np.mean(intf.linedens[j1:j2])
+        tag += f", {N_int:.1e}"
     except:
         print(f"Issue with Interferometer {shot}")
+        tag += f", -"
 
     try:
         gas = Gas(shot)
@@ -293,7 +302,7 @@ def plot6(shot, axs=None, plotLimiter=True):
     except:
         print(f"Issue with gas {shot}")
 
-    print(f"{shot}, {V_ring:.1f}, {I_ring:.2f}, {P_ech:.1f}, {F1:.2f}, {N_int:.1e}")
+    print(tag)
 
     if axs is None:
         axs[0].legend(loc=4, fontsize=7)
