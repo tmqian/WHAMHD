@@ -6,7 +6,6 @@ from scipy.fft import fft, fftfreq
 
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
-import matplotlib.pyplot as pl
 
 '''
 This colletion of classes loads data from WHAM MDS+ tree
@@ -387,7 +386,7 @@ class AXUV:
 
 
     def plot(self):
-        cmap = pl.cm.turbo(np.linspace(0,1,20))
+        cmap = plt.cm.turbo(np.linspace(0,1,20))
 
         fig,axs = plt.subplots(1,1,figsize=(12,8))
         for j in range(20):
@@ -829,12 +828,13 @@ class EndRing:
 
         # plot time trace
         N_ring = len(self.ProbeArr)
+        cjet = plt.cm.jet(np.linspace(0,1,10))
         for j in range(N_ring):
-            ax0.plot(self.time, self.ProbeArr[j], f"C{j}", lw=0.5)
+            ax0.plot(self.time, self.ProbeArr[j], color=cjet[j], lw=0.5)
             if j>0:
-                ax0.plot(self.time, self.SmoothArr[j], f"C{j}", label=f"Ring {j}")
+                ax0.plot(self.time, self.SmoothArr[j], color=cjet[j], label=f"Ring {j}")
             else:
-                ax0.plot(self.time, self.SmoothArr[j], f"C{j}", label=f"Disk 0")
+                ax0.plot(self.time, self.SmoothArr[j], color=cjet[j], label=f"Disk 0")
 
         ax0.set_xlabel("time [ms]")
         ax0.set_title("floating potential [V]", fontsize=12)
