@@ -228,18 +228,8 @@ class FluxLoop:
         FL3 = tree.getNode("diag.fluxloops.fl3").getData().data() * 1e8
 
         # the sign on flux loop 3 is questionable, so we integrate
-        sign = np.sign( np.sum(FL3) )
-        FL3 *= sign
-
-        #FL3 *= -1 # used for 0721, but not 0729
-        #if self.shot > 240809000 and self.shot < 240830000:
-        #    FL3 *= -1
-
-        # convert to ms
-        #time = tree.getNode("diag.fluxloops.time").getData().data() * 1e3
-        #time = (time+5) * (2./3) - 8 # ad hoc, for shots 0728, not perfect
-        #time = (time-6)/2 # ad hoc for shots 0721
-        #time = (time+2)*2 # ad hoc for shots 0729045+
+        #sign = np.sign( np.sum(FL3) )
+        #FL3 *= sign
 
         # shot 0801 on
         time = tree.getNode("diag.fluxloops.fl3").dim_of().data() * 1e3
