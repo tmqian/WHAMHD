@@ -210,6 +210,20 @@ class Interferometer:
         axs.set_title(self.shot)
         plt.show()
 
+    def fix_fringe_skip(self, t0=10, # ms
+                              N=1, # signed of number of fringes
+                              dn=2.3e18, # hard coded
+                              back = False, # propagate change back from t = t0
+                              ):
+
+        t = np.argmin(np.abs(self.time - t0))
+
+        if back:
+            self.linedens[:t] += N*dn
+        else:
+            # propagate change forward from t=t0
+            self.linedens[t:] += N*dn
+
 
 class FluxLoop:
 
@@ -572,9 +586,9 @@ class Bolometer:
 
         fig,axs = plt.subplots(7,1,figsize=(8,9), sharex=True)
         for j in range(7):
-            data = bolo.data[j]
+            data = self.data[j]
             dT = np.max(data) - np.min(data)
-            axs[j].plot(bolo.time, data, label=rf"$\Delta T$ = {dT:.2f}")
+            axs[j].plot(self.time, data, label=rf"$\Delta T$ = {dT:.2f}")
             axs[j].axhline(np.min(data), ls='--', color='C1', lw=0.5)
             axs[j].axhline(np.max(data), ls='--', color='C1', lw=0.5)
             axs[j].set_ylabel(f"Ch {j+1}")
@@ -666,6 +680,46 @@ class Bolometer:
 
         fig.suptitle(self.shot)
         plt.show()
+
+class adhocGas:
+    # temp for week of 25-0220
+    def __init__(self, shot):
+
+        self.shot = shot
+        self.load()
+
+    def load(self):
+
+        tree = mds.Tree("wham",self.shot)
+        raw = "raw.gas_scope"
+        
+        data = [tree.getNode(f"{raw}.ch_{j+1:02d}.signal").getData().data() for j in range(4)]
+        freq = [tree.getNode(f"{raw}.ch_{j+1:02d}.freq").getData().data() for j in range(4)]
+        delay = [tree.getNode(f"{raw}.ch_{j+1:02d}.delay").getData().data() for j in range(4)]
+        offset = [tree.getNode(f"{raw}.ch_{j+1:02d}.offset").getData().data() for j in range(4)]
+        scale = [tree.getNode(f"{raw}.ch_{j+1:02d}.scale").getData().data() for j in range(4)]
+        
+        #trig_time = tree.getNode(f"{raw}.trig_time").getData().data() 
+        N = len(data[0])
+        trig_time = -7 # ms
+        dt = 1/freq[0] *1e3 # ms
+        scope_delay = delay[0] * 1e3 # ms
+        time = np.arange(N)*dt + trig_time + scope_delay
+        
+        ### need to process the data
+        def adjust(data):
+            offset = np.mean(data[-1000:])
+            data -= offset
+        
+            scale = np.max(data)
+            data /= scale
+            return data
+
+        self.time = time
+        self.trig = adjust(data[0])
+        self.ring = adjust(data[1])
+        self.sec = adjust(data[2])
+        self.nec = adjust(data[3])
 
 class Gas:
     def __init__(self, shot):

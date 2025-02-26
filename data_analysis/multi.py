@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-from WhamData import ECH, BiasPPS, Interferometer, FluxLoop, EdgeProbes, NBI, AXUV, EndRing, Gas
+from WhamData import ECH, BiasPPS, Interferometer, FluxLoop, EdgeProbes, NBI, AXUV, EndRing, Gas, adhocGas
 from DataSpec import Spectrometer
 
 from scipy.signal import savgol_filter as savgol
@@ -90,13 +90,24 @@ def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
 #        print(f"Issue with Edge probe {shot}")
 
     # gas
+    '''
+    replacing with demand, because gauge signal is now low (25/02/20)
+    '''
+#    try:
+#        gas = Gas(shot)
+#        ax = axs[2,0]
+#        ax.plot(gas.t_asdex, gas.asdex_hi*1e3, 'C2', label=r"asdex [mTorr]")
+#        ax.plot(gas.t_asdex, gas.asdex_lo*1e3, 'C1')
+#    except:
+#        print(f"Issue with gas {shot}")
     try:
-        gas = Gas(shot)
+        gas = adhocGas(shot)
         ax = axs[2,0]
-        ax.plot(gas.t_asdex, gas.asdex_hi*1e3, 'C2', label=r"asdex [mTorr]")
-        ax.plot(gas.t_asdex, gas.asdex_lo*1e3, 'C1')
+        ax.plot(gas.time, gas.ring, 'C1', label='ring')
+        ax.plot(gas.time, gas.sec, 'C2', label='CC-S')
+        ax.plot(gas.time, gas.nec, 'C3', label='CC-N')
     except:
-        print(f"Issue with gas {shot}")
+        print(f"Issue with gas demand {shot}")
     
     # axuv
     try:
@@ -134,7 +145,7 @@ def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
     axs[-1,0].set_xlabel("time [ms]")
     axs[-1,1].set_xlabel("time [ms]")
     axs[-1,2].set_xlabel("time [ms]")
-    axs[-1,0].set_xlim(-2,24)
+    axs[-1,0].set_xlim(-6,27)
 
     if tag == "":
         fig.suptitle(shot)
