@@ -15,6 +15,7 @@ to plot multiple diagnostics.
 
 plot9 - (3x3) figure, many traces per plot, single shot
 plot6 - (6x1) figure, single trace per plot, multi or single shot
+plot8 - (4x2) figure, contains NBI
 '''
 
 def toBool(data):
@@ -310,6 +311,142 @@ def plot6(shot, axs=None, plotLimiter=True):
         gas = Gas(shot)
         axs[5].plot(gas.t_asdex, gas.asdex_hi*1e3)
         axs[5].set_title(r"asdex [mTorr]")
+    except:
+        print(f"Issue with gas {shot}")
+
+    print(tag)
+
+    if axs is None:
+        axs[0].legend(loc=4, fontsize=7)
+        for a in axs:
+            a.minorticks_on()
+            a.grid(which='both')
+            a.grid(which='minor', linestyle=":", linewidth=0.5)
+
+        axs[-1].set_xlabel("time [ms]")
+        axs[-1].set_xlim(-1,20)
+
+        fig.tight_layout()
+        #plt.savefig(f"out/shot-{shot}.png")
+        plt.show()
+
+
+# plot
+def plot8(shot, axs=None, plotLimiter=True):
+    shot = int(shot)
+
+    tag = f"{shot}"
+    # Bias plots
+    try:
+        bias = BiasPPS(shot)
+
+        if plotLimiter:
+
+            V = bias.L_VLem
+            I = bias.L_ILem - V/1.4
+
+            axs[2,0].set_title(r"Limiter Potential [V]")
+            axs[3,0].set_title(r"Limiter Current [A]")
+
+        else:
+            V = bias.R_VLem
+            I = bias.R_ILem 
+
+            axs[2,0].set_title(r"Ring Potential [V]")
+            axs[3,0].set_title(r"Ring Current [A]")
+
+        time = bias.time
+        axs[2,0].plot(time, V)
+        axs[3,0].plot(time, I)
+
+        j1,j2 = get_time_index(time, 7,9)
+        V_ref = np.mean(V[j1:j2])
+        I_ref = np.mean(I[j1:j2])
+        tag += f", {V_ref:.1f}, {I_ref:.2f}"
+    except:
+        print(f"Issue with Bias {shot}")
+        tag += f", -, -"
+
+    # ECH plots
+    try:
+        ech = ECH(shot)
+        ax = axs[0,0]
+        ax.plot(ech.time,ech.Fwg_filt, label=f"{shot}")
+        ax.set_title("ECH Power [kW]")
+
+        j1,j2 = get_time_index(ech.time, 3,9)
+        P_ech = np.mean(ech.Fwg_filt[j1:j2])
+        tag += f", {P_ech:.1f}"
+    except:
+        print(f"Issue with ECH {shot}")
+        tag += f", -"
+
+
+    # NBI
+    try:
+        nbi = NBI(shot)
+        ax = axs[1,0]
+
+        P = nbi.V_Beam * nbi.I_Beam
+        ax.plot(nbi.time, P)
+        ax.set_title("NBI Power [kW]")
+    
+        j1,j2 = get_time_index(nbi.time, 6,12)
+        P_nbi = np.mean(P[j1:j2])
+        tag += f", {P_nbi:.1f}"
+    except:
+        print(f"Issue with NBI {shot}")
+        tag += f", -"
+
+    # Flux
+    try:
+        flux = FluxLoop(shot)
+        axs[0,1].plot(flux.time,flux.FL1/1000)
+        axs[0,1].set_title("Flux Loop 1 [kMx]")
+        axs[1,1].plot(flux.time,flux.FL2/1000)
+        axs[1,1].set_title("Flux Loop 2 [kMx]")
+
+        win = 201; poly = 3
+        j1,j2 = get_time_index(flux.time, 8,11)
+
+        F = savgol(flux.FL1/1e3, win,poly)
+        F1 = np.max(F[j1:j2])
+        tag += f", {F1:.2f}"
+
+        F = savgol(flux.FL2/1e3, win,poly)
+        F2 = np.max(F[j1:j2])
+        tag += f", {F2:.2f}"
+
+    except:
+        print(f"Issue with Flux Loop {shot}")
+        tag += f", -"
+        tag += f", -"
+
+    # intf
+    try:
+        intf = Interferometer(shot)
+
+        if shot == 250214066:
+            intf.fix_fringe_skip(t0=6, N=-1, back=True)
+        if shot == 250214041:
+            intf.fix_fringe_skip(t0=7.7, N=1, back=True)
+
+        axs[2,1].plot(intf.time, intf.linedens)
+        axs[2,1].set_title(r"Line integrated density [m$^{-2}$]")
+
+        j1,j2 = get_time_index(intf.time, 5,9)
+        N_int = np.mean(intf.linedens[j1:j2])
+        tag += f", {N_int:.1e}"
+    except:
+        print(f"Issue with Interferometer {shot}")
+        tag += f", -"
+
+    try:
+        gas = Gas(shot)
+        ax = axs[3,1]
+        ax.plot(gas.t_asdex, gas.asdex_hi*1e3)
+        ax.set_title(r"asdex [mTorr]")
+        ax.set_ylim(-0.1,1.5)
     except:
         print(f"Issue with gas {shot}")
 
