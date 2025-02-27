@@ -47,14 +47,22 @@ def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
     # bias plots
     try:
         bias = BiasPPS(shot)
+
+        LV = bias.L_VLem
+        LI = bias.L_ILem - LV/1.4
+        RV = bias.R_VLem
+        RI = bias.R_ILem 
+        time = bias.time
+
         ax = axs[2,1]
-        ax.plot(bias.time, bias.L_Dem*1e3, 'C0', label="Limiter Demand [mV]")
-        ax.plot(bias.time, bias.L_VLem, 'C1', label="Limiter Potential [V]")
-        ax.plot(bias.time, bias.L_ILem, 'C5', label="Limiter Current [A]")
+        ax.plot(time, bias.L_Dem*1e3, 'C0', label="Limiter Demand [mV]")
+        ax.plot(time, LV, 'C1', label="Limiter Potential [V]")
+        ax.plot(time, LI, 'C5', label="Limiter Current [A]")
+
         ax = axs[2,2]
-        ax.plot(bias.time, bias.R_Dem*1e2, 'C0', label="Ring Demand [cV]")
-        ax.plot(bias.time, bias.R_VLem, 'C1', label="Ring Potential [V]")
-        ax.plot(bias.time, bias.R_ILem*10, 'C5', label="Ring Current [10x A]")
+        ax.plot(time, bias.R_Dem*1e2, 'C0', label="Ring Demand [cV]")
+        ax.plot(time, RV, 'C1', label="Ring Potential [V]")
+        ax.plot(time, RI*10, 'C5', label="Ring Current [10x A]")
     except:
         print(f"Issue with Bias {shot}")
     
