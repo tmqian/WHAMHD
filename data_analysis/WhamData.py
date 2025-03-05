@@ -699,9 +699,8 @@ class adhocGas:
         offset = [tree.getNode(f"{raw}.ch_{j+1:02d}.offset").getData().data() for j in range(4)]
         scale = [tree.getNode(f"{raw}.ch_{j+1:02d}.scale").getData().data() for j in range(4)]
         
-        #trig_time = tree.getNode(f"{raw}.trig_time").getData().data() 
         N = len(data[0])
-        trig_time = -7 # ms
+        trig_time = tree.getNode(f"fueling.trig_times.main").getData().data() * 1e3 # ms
         dt = 1/freq[0] *1e3 # ms
         scope_delay = delay[0] * 1e3 # ms
         time = np.arange(N)*dt + trig_time + scope_delay
@@ -718,8 +717,8 @@ class adhocGas:
         self.time = time
         self.trig = adjust(data[0])
         self.ring = adjust(data[1])
-        self.sec = adjust(data[2])
-        self.nec = adjust(data[3])
+        self.nec = adjust(data[2])
+        self.sec = adjust(data[3])
 
 class Gas:
     def __init__(self, shot):
@@ -795,6 +794,19 @@ class Gas:
         #fig.suptitle(s.shot)
         fig.tight_layout()
 
+class IonProbe:
+    def __init__(self, shot):
+
+        self.shot = shot
+        self.load()
+
+    def load(self):
+
+        tree = mds.Tree("wham",self.shot)
+        path = "diag.ion_probe"
+        
+        self.Icol = tree.getNode(f"{path}.I_col").getData().data() 
+        self.time = tree.getNode(f"{path}.I_col").dim_of().data() * 1e3 # ms
 
 class EndRing:
 
@@ -883,7 +895,7 @@ class EndRing:
         ax0.set_xlabel("time [ms]")
         ax0.set_title("floating potential [V]", fontsize=12)
         ax0.set_xlim(-1,32)
-        ax0.set_ylim(1.05 * np.min(self.ProbeArr), np.max(self.ProbeArr)*1.2)
+        ax0.set_ylim(1.05 * np.min(self.ProbeArr), np.max(self.ProbeArr)*1.5)
         ax0.grid()
         ax0.legend(loc=1, fontsize=7)
 
