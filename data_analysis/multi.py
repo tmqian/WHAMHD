@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-from WhamData import ECH, BiasPPS, Interferometer, FluxLoop, EdgeProbes, NBI, AXUV, EndRing, Gas, adhocGas
+from WhamData import ECH, BiasPPS, Interferometer, FluxLoop, EdgeProbes, NBI, AXUV, EndRing, ShineThrough, Gas, adhocGas
 from DataSpec import Spectrometer
 
 from scipy.signal import savgol_filter as savgol
@@ -30,6 +30,25 @@ def get_time_index(time_axis, t1, t2):
     j1 = np.argmin(np.abs(time_axis - t1))
     j2 = np.argmin(np.abs(time_axis - t2))
     return j1,j2
+
+def readLog(csv):
+    '''
+    Loads a csv shot log
+    Expects YYMMDD-shotlog.csv
+    '''
+
+    with open(csv) as f:
+        data = f.readlines()
+    day = int(csv[:6])*1000
+    
+    log = {}
+    for line in data:
+        k = line.find(',')
+        key = day + int(line[:k])
+        val = line[k+1:].strip()
+        log[key] = val
+
+    return log
 
 def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
 
@@ -79,10 +98,21 @@ def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
     # density
     try:
         intf = Interferometer(shot)
-        axs[1,1].plot(intf.time, intf.linedens,'C2', label=r"Line Integrated Density [m$^{-2}$]")
+        r0 = 0.136 # hard coded
+        ne = intf.linedens / (2*r0)
+        axs[1,1].plot(intf.time, ne,'C2', label=r"Line Averaged Density [m$^{-3}$]")
+        #axs[1,1].plot(intf.time, intf.linedens,'C2', label=r"Line Integrated Density [m$^{-2}$]")
     except:
         print(f"Issue with Interferometer {shot}")
     
+    # Shine Through
+    try:
+        shine = ShineThrough(shot)
+        j1,j2 = get_time_index(shine.time,1,14.5)
+        axs[1,1].plot(shine.time[j1:j2], shine.nt[j1:j2], 'C1', label=r"Shine Through Density [m$^{-3}$]")
+    except:
+        print(f"Issue with ShineThrough {shot}")
+
     ## end ring
     #try:
     #    ring = EndRing(shot)

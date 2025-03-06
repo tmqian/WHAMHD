@@ -794,6 +794,22 @@ class Gas:
         #fig.suptitle(s.shot)
         fig.tight_layout()
 
+class ShineThrough:
+
+    def __init__(self, shot):
+
+        self.shot = shot
+        self.load()
+
+    def load(self):
+
+        tree = mds.Tree("wham",self.shot)
+        path = "diag.shinethru.linedens"
+
+        self.nt = tree.getNode(f"{path}.central_dens").getData().data()
+        self.nr = tree.getNode(f"{path}.density_prof").getData().data()
+        self.time = tree.getNode(f"{path}.central_dens").dim_of().data() * 1e3 # ms
+
 class IonProbe:
     def __init__(self, shot):
 
