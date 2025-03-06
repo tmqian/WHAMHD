@@ -35,6 +35,9 @@ def readLog(csv):
     '''
     Loads a csv shot log
     Expects YYMMDD-shotlog.csv
+
+    First column of csv is 3-digit shot number
+    All other columns are concatenated as the log entry
     '''
 
     with open(csv) as f:
@@ -50,7 +53,7 @@ def readLog(csv):
 
     return log
 
-def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
+def plot9(shot, save="", plot_limiter_bias=False, tag=""):
 
     fig, axs = plt.subplots(3,3,sharex=True, figsize=(13,9))
 
@@ -193,10 +196,10 @@ def plot9(shot, fout="", plot_limiter_bias=False, tag=""):
 
     fig.tight_layout()
 
-    if fout != "":
-        plt.savefig(fout)
+    if save != "":
+        plt.savefig(save)
         plt.close()
-        print(f"Saved {fout}")
+        print(f"Saved {save}")
     else:
         plt.show()
 
