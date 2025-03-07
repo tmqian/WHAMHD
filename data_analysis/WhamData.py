@@ -59,6 +59,31 @@ def STFT(signal, time,
     G = fft(block,axis=1)[:,:M] # complex valued (W x M)
     return G, T, F
 
+def STFT2(signal, time,
+         W = 500, # number of windows
+         L = 1 # Length of window in ms
+        ):
+
+
+    N = len(time)
+    dT = time[-1] - time[0] # range, ms
+    dt = time[1] - time[0] # step, ms
+    f = round(N/dT) # kHz
+    S = int(L * f) # Samples per window
+    M = S//2 # fourier modes
+
+    # Set up time and spectral axes
+    tax = np.arange(0,N,N//W) # t start indices for W windows
+    cut = round(S/(N//W))+1 
+    tax = tax[:-cut] # remove the last windows that over flow the time axis
+    T = time[tax]
+    F = fftfreq(S,dt)[:M] # kHz
+
+    # Batch Fourier Transform
+    block = np.array([signal[t:t+S] for t in tax])
+    G = fft(block,axis=1)[:,:M] # complex valued (W-cut x M)
+    return G, T, F
+
 ### End Helper
 
 class BiasPPS:
@@ -600,7 +625,6 @@ class Bolometer:
         axs[-1].set_xlabel("time [ms]")
 
         fig.suptitle(self.shot)
-        plt.show()
 
     def plotQ(self, axs, N=6, # N channels
               vessel_D = 60, # cm, diameter
@@ -624,8 +648,12 @@ class Bolometer:
         surface = np.pi*vessel_D*vessel_L #cm2
         E = Q*surface / 1e6 # kJ
 
-        rax = np.arange(N)+1
-        axs.plot(rax,Q,'o-',label=self.shot)
+        #rax = np.arange(N)+1
+        rax = [-50, -30, -10, 10, 30, 50]
+        #axs.plot(rax,Q,'o-',label=self.shot)
+        axs.plot(rax,Q,'o-',label=f"{E:.1} kJ")
+        axs.set_xlabel("Z [cm]")
+        axs.set_ylabel("Fast Neutral Flux [mJ/cm2]")
 
     def plotCombo(self, N=6, # N channels
               vessel_D = 60, # cm, diameter
