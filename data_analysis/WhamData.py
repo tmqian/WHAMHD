@@ -648,12 +648,16 @@ class Bolometer:
         surface = np.pi*vessel_D*vessel_L #cm2
         E = Q*surface / 1e6 # kJ
 
-        #rax = np.arange(N)+1
         rax = [-50, -30, -10, 10, 30, 50]
+        #rax = np.arange(N)+1
         #axs.plot(rax,Q,'o-',label=self.shot)
-        axs.plot(rax,Q,'o-',label=f"{E:.1} kJ")
+        axs.plot(rax,Q,'o-',label=f"{np.sum(E):.1f} kJ")
         axs.set_xlabel("Z [cm]")
         axs.set_ylabel("Fast Neutral Flux [mJ/cm2]")
+
+        axs.grid()
+        axs.set_title(self.shot)
+        axs.legend()
 
     def plotCombo(self, N=6, # N channels
               vessel_D = 60, # cm, diameter
