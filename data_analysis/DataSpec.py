@@ -33,25 +33,63 @@ def joule_to_eV(joule):
 # Used ROI (ROI8 is blank)
 ROI = np.array([0, 1, 2, 3, 4, 5, 6, 7, 9, 10])
 WEIGHT = np.array([1, 1, 1, 1/2, 1, 1, 1, 1/2, 1, 1])
-# LOS for the ROI
-LOS = (np.array([
-        6, 5, 8, 3, 10, 
+# LOS for the ROI -- these are OLD LOS positions from circa 2024 September to 2025 March
+LOS_2409 = (np.array([
+        6, 5, 8, 3, 10,
         1,
         11, 2, 9,
         4, 7
 ]) - 5.8) * 15
 
-# wavelength calibration results from the experiments taken on 9/12/2024. The files are 
+# ---------------------------------------------------------------------
+# START reverse engineering of mapping between code ROI and physical
+# fiber's impact parameter w.r.t. machine axis, using Slack #ornl_pdp posts and
+# scripts scattered around andrew + jack computers.  --ATr,2025mar15
+
+# FIRST ATTEMPT, suppose 2-1 to 2-11 (WEST to EAST) maps to WHAM2 ROIs 1-11
+# provided by Keisuke Fujii on WHAM Slack #ornl-pdp on 2025 March 07.
+# Units are mm.  These LOS positions look wrong compared to Keisuke's plot
+# WHAM_250306045.png (shared on Slack #ornl_pdp channel), because radial
+# positions don't match and velocity radial profile does not show sine-wave
+# shape.
+
+#LOS_2503 = np.array([
+#    -140.3, -112.9, -85.1, -53.7, -28.5,
+#    0, 28.5, 53.7, 85.1, 112.9, 140.3
+#])
+
+# SECOND ATTEMPT, using photograph of Keisuke's lab notebook from 2025 March
+# 07, mapping SPEC2 1 --> 1-6, 2 --> 1-5, 3 --> 3-8, et cetera
+# posted in thread with Solomon Murdock on Slack #ornl_pdp channel.
+# This one agrees better with Keisuke's plot WHAM_250306045.png on Slack.
+LOS_2503 = np.array([
+     14.3, # 1 <--> 1-6 (B6-6)
+    -14.3, # 2 <--> 1-5 (B6-5)
+     71.1, # 3 <--> 3-8 (B4-8)
+    -71.1, # 4 <--> 3-3 (B4-3)
+     126.7, # 5 <--> 1-10 (B6-10)
+    -126.7, # 6 <--> 1-1 (...)
+    153.7, # 7 <--> 1-11   # only fiber without a "paired" negative position
+    -99.1, # 8 <--> 1-2
+     99.1, # 9 <--> 3-9
+    -42.7, # 10 <--> 1-4
+     42.7, # 11 <--> 1-7
+])
+
+# END reverse engineering of ROI to LOS mapping
+# ---------------------------------------------------------------------
+
+# wavelength calibration results from the experiments taken on 9/12/2024. The files are
 # WHAM2_466nm_roi 00.spe in calib directory.
 # For the definitions of alpha, dx0, dx1, w0, w1, see twogauss functions
 WL_ALPHA = [
     0.40056876, 0.41836623, 0.4679105 , 0.50796722, 0.54198214,
-    0.56667849, 0.53052786, 0.54982814, 0.48585918, 0.36459809, 
+    0.56667849, 0.53052786, 0.54982814, 0.48585918, 0.36459809,
     0.37546005
 ]
 WL_DX0 = [
     0.11236539, 0.09642858, 0.08485799, 0.07234005, 0.06704428,
-    0.06494156, 0.06467431, 0.06683342, 0.07417026, 0.08781449, 
+    0.06494156, 0.06467431, 0.06683342, 0.07417026, 0.08781449,
     0.10058697
 ]
 WL_DX1 = [
@@ -62,7 +100,7 @@ WL_DX1 = [
 WL_W0 = [
     0.02739202, 0.02617437, 0.02309229, 0.02040617, 0.01856676,
     0.01794303, 0.01877269, 0.01845044, 0.02063121, 0.02462845,
-    0.02652926    
+    0.02652926
 ]
 WL_W1 = [
     0.06163808, 0.05824325, 0.06429075, 0.0484748 , 0.05739492,
@@ -83,21 +121,21 @@ def normal(x):
 
 def Gauss(x, A, x0, sigma, offset):
     """
-    Standard Gaussian function with area A, centroid x0, 
+    Standard Gaussian function with area A, centroid x0,
     standard deviation sigma, and offset.
     """
     return normal((x - x0) / sigma) / sigma * A + offset
 
 def twogauss(x, A, x0, w, y0, alpha, dx0, dx1, w0, w1):
     return A * (
-        Gauss(x, 1 - alpha, dx0 + x0, np.sqrt(w**2 + w0**2), 0) + 
+        Gauss(x, 1 - alpha, dx0 + x0, np.sqrt(w**2 + w0**2), 0) +
         Gauss(x, alpha, dx1 + x0, np.sqrt(w**2 + w1**2), 0)
     ) + y0
 
 
-def fit_CIII(data, roi):
-    r''' For CIII line 
-    
+def fit_CIII(data, roi, LOS=None):
+    r''' For CIII line
+
     Parameters
     ----------
     data1d: 1d xr.DataArray, with wavelength
@@ -114,7 +152,7 @@ def fit_CIII(data, roi):
         dx0=WL_DX0[roi], dx1=WL_DX1[roi],
         w0=WL_W0[roi], w1=WL_W1[roi]
     )
-    
+
     def profile(x, bg, dxC, nC, wC, dxCu=0, nCu=0, wCu=1, dxO=0, nO=0, wO=1):
         y = bg
         for wl, gA in [
@@ -163,12 +201,12 @@ def fit_CIII(data, roi):
         'fit': profile(data1d['wavelength'], *popt),
     }, coords={k: i for k, i in data.coords.items() if i.ndim == 0})
     result['roi'] = roi
-    result['los'] = LOS[roi] 
+    result['los'] = LOS[roi]
     result['line'] = 'CIII'
     # temperature
     lam0 = 465.0
     result['Ti'] = (
-        (), 
+        (),
         joule_to_eV((result['width'].item() * cvel / lam0)**2 * mC),
         {'units': 'eV'}
     )
@@ -180,9 +218,9 @@ def fit_CIII(data, roi):
     return result
 
 
-def fit_HeII(data, roi):
-    r''' For HeII line 
-    
+def fit_HeII(data, roi, LOS=None):
+    r''' For HeII line
+
     Parameters
     ----------
     data1d: 1d xr.DataArray, with wavelength
@@ -198,7 +236,7 @@ def fit_HeII(data, roi):
         alpha=WL_ALPHA[roi],
         dx0=WL_DX0[roi], dx1=WL_DX1[roi],
         w0=WL_W0[roi], w1=WL_W1[roi]
-    )    
+    )
     def profile(x, bg, dxHe, nHe, wHe):
         y = bg
         for wl, gA in [
@@ -245,8 +283,8 @@ def fit_HeII(data, roi):
     result['line'] = 'HeII'
     lam0 = 468.0
     result['Ti'] = (
-        (), 
-        joule_to_eV((result['width'].item() * cvel / lam0)**2 * mHe), 
+        (),
+        joule_to_eV((result['width'].item() * cvel / lam0)**2 * mHe),
             {'units': 'eV'}
     )
     result['Ti_err'] = 2.0 * np.abs(
@@ -271,7 +309,7 @@ def fit_curvature(roi, shift, shift_err, use_predetermined_curvature=False):
     return func(roi, *popt)
 
 
-def process(filename,args,savefig=True):
+def process(filename,args,savefig=True,LOS=None):
     ''' evaluate the Doppler shift
     '''
 
@@ -284,13 +322,13 @@ def process(filename,args,savefig=True):
 
     resultsC = []
     for roi in range(data.sizes['roi']):
-        resultsC.append(fit_CIII(data.isel(roi=roi), data.isel(roi=roi)['roi'].item()))
+        resultsC.append(fit_CIII(data.isel(roi=roi), data.isel(roi=roi)['roi'].item(), LOS=LOS))
     resultsC = xr.concat(resultsC, dim='roi')
     resultsC['line'] = resultsC['line'][0].item()
 
     resultsHe = []
     for roi in range(data.sizes['roi']):
-        resultsHe.append(fit_HeII(data.isel(roi=roi), data.isel(roi=roi)['roi'].item()))
+        resultsHe.append(fit_HeII(data.isel(roi=roi), data.isel(roi=roi)['roi'].item(), LOS=LOS))
     resultsHe = xr.concat(resultsHe, dim='roi')
     resultsHe['line'] = resultsHe['line'][0].item()
 
@@ -319,11 +357,17 @@ class Spectrometer:
         f1 = f"{path}/WHAM1_{shot}.spe"
         f2 = f"{path}/WHAM2_{shot}.spe"
 
-        self.results = process(f2,shot,savefig=False)
+        if int(year) >= 25 and int(month) >= 3 and int(day) >= 6:
+            print('using new impact parameters from 2025 March (LOS_2503)')
+            self.LOS = LOS_2503
+        else:
+            print('using old impact parameters from 2024 September (LOS_2409)')
+            self.LOS = LOS_2409
+        self.ROI = ROI
+
+        self.results = process(f2,shot,savefig=False,LOS=self.LOS)
 
         self.C = self.results.sel(line='CIII')
-        self.LOS = LOS
-        self.ROI = ROI
 
         self.gate_delay = float(self.C['data'].gate_delay)/1e6 # ms
         self.gate_width = float(self.C['data'].gate_width)/1e6 # ms
@@ -383,7 +427,7 @@ class Spectrometer:
 
             R = np.array(C.los[j])
             c_idx = get_color_index(R)
-            axs.plot(C.wavelength - shift, spectra, 'o-', color=cmap[c_idx], label= f"{C.los[j]:.1f}, (roi,los)={self.ROI[j]},{self.LOS[j]:.1f}")
+            axs.plot(C.wavelength - shift, spectra, 'o-', color=cmap[c_idx], label= f"{C.los[j]:.1f}")#, (roi,los)={self.ROI[j]},{self.LOS[j]:.1f}")
             #axs.plot(C.wavelength - shift, C.data[j], 'o-', color=cmap[c_idx], label= f"{C.los[j]:.1f}")
             #axs.plot(C.wavelength - shift, C.data[arg[j]], 'o-', color=cmap[c_idx], label= f"{C.los[j]:.1f}")
 
