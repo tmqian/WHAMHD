@@ -274,6 +274,7 @@ def fit_curvature(roi, shift, shift_err, use_predetermined_curvature=False):
 def process(filename,args,savefig=True):
     ''' evaluate the Doppler shift
     '''
+
     data = []
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
