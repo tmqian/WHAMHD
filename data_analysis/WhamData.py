@@ -27,6 +27,16 @@ Updated 15 January 2025
 def zero_offset(f,idx=2000):
     f -= np.mean(f[-idx:])
 
+def get_time_array(time, t_array):
+    '''
+    time is a t-axis
+    t_array is a list or times in ms
+
+    returns a list of indexes for t-axis
+    '''
+    return [np.argmin(np.abs(time-t)) for t in t_array]
+
+
 def STFT(signal, time,
          W = 250, # number of windows
         ):
@@ -830,7 +840,7 @@ class ShineThrough:
 
     def __init__(self, shot):
 
-        self.shot = shot
+        self.shot = int(shot)
         self.load()
 
     def load(self):
@@ -839,8 +849,23 @@ class ShineThrough:
         path = "diag.shinethru.linedens"
 
         self.nt = tree.getNode(f"{path}.central_dens").getData().data()
-        self.nr = tree.getNode(f"{path}.density_prof").getData().data()
+        self.nr = tree.getNode(f"{path}.density_prof").getData().data().T # [time, radius]
         self.time = tree.getNode(f"{path}.central_dens").dim_of().data() * 1e3 # ms
+        self.radius = tree.getNode(f"{path}.density_prof").dim_of(0).data() * 100 # cm
+
+    def plot(self, t_array=[6]):
+
+        fig, axs = plt.subplots(1,1)
+        arr = get_time_array(self.time, t_array)
+
+        for k,t in enumerate(t_array):
+            axs.plot(self.radius, self.nr[arr[k]], 'o-', label=f"{t} ms")
+
+        axs.grid()
+        axs.legend()
+        axs.set_title(self.shot)
+        axs.set_xlabel("radius [cm]")
+        axs.set_ylabel("density [m^-3]")
 
 class IonProbe:
     def __init__(self, shot):
