@@ -1,0 +1,28 @@
+# -------------------------------------------
+# Exclusions from github.com/github/gitignore
+# -------------------------------------------
+
+# Python Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Mac OS - General
+.DS_Store
+.AppleDouble
+.LSOverride
+# Mac OS - Icon must end with two \r
+Icon
+# Mac OS - Thumbnails
+._*
+
+# Vim swap files etc.
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+*~
