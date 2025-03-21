@@ -101,7 +101,9 @@ class BiasPPS:
     def __init__(self, shot,
                        ILEM_gain=-500,
                        VLEM_gain=800,
-                       VFBK_gain=-1):
+                       VFBK_gain=-1,
+                       no_dtacq = False
+                 ):
 
         self.shot = shot
         if shot < 240728011:
@@ -112,7 +114,10 @@ class BiasPPS:
         self.VLEM_gain = VLEM_gain
         self.VFBK_gain = VFBK_gain
 
-        self.load()
+        if no_dtacq:
+            self.load_labview_demand()
+        else:
+            self.load()
 
     def load(self, t_max=100 #ms
             ):
@@ -136,6 +141,7 @@ class BiasPPS:
 
         time = tree.getNode(f"{data}.PPS_L.demand.filtered").dim_of().data() * 1e3 # ms
 
+
         # save
         self.time = time
         self.L_Dem  = L_Dem
@@ -149,6 +155,7 @@ class BiasPPS:
         self.R_Vpps = R_Vpps * self.VFBK_gain
         self.R_VFB  = R_VFB * self.VFBK_gain
 
+        self.load_labview_demand()
 
         # load raw data
         raw = "raw.acq196_370"
@@ -163,6 +170,17 @@ class BiasPPS:
         self.raw_R_Vpps = tree.getNode(f"{raw}.ch_09").getData().data()
         self.raw_R_VFB = tree.getNode (f"{raw}.ch_10").getData().data()
         self.trigger = tree.getNode (f"{raw}.ch_11").getData().data()
+
+    def load_labview_demand(self):
+
+        # load demand
+        if self.shot > 250301000:
+            tree = mds.Tree("wham",self.shot)
+            tbias = tree.getNode("bias.bias_params.trig_time").getData().data() # t0 for bias demand waveform
+            self.Ldem_T = tree.getNode("bias.bias_params.dmd_waveform.pps_L_T").getData().data() + tbias*1e3
+            self.Ldem_V = tree.getNode("bias.bias_params.dmd_waveform.pps_L_V").getData().data()
+            self.Rdem_T = tree.getNode("bias.bias_params.dmd_waveform.pps_R_T").getData().data() + tbias*1e3
+            self.Rdem_V = tree.getNode("bias.bias_params.dmd_waveform.pps_R_V").getData().data()
 
     def plot_raw(self):
         fig, axs = plt.subplots(2,1,figsize=(8,5), sharex=True)
@@ -761,6 +779,17 @@ class adhocGas:
         self.ring = adjust(data[1])
         self.nec = adjust(data[2])
         self.sec = adjust(data[3])
+
+    def plot(self):
+        plt.figure()
+        s = self
+        plt.plot(s.time, s.trig, label="Ch 1 Trig")
+        plt.plot(s.time, s.ring, label="Ch 2 Ring")
+        plt.plot(s.time, s.nec, label="Ch 3 North CC")
+        plt.plot(s.time, s.sec, label="Ch 4 South CC")
+        plt.grid()
+        plt.legend()
+        plt.title(self.shot)
 
 class Gas:
     def __init__(self, shot):
