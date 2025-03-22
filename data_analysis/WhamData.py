@@ -561,6 +561,7 @@ class NBI:
         self.I_Beam = I_Beam
         self.V_Beam = V_Beam
         self.time = time
+        self.radius = [  9.79932,   8.001  ,   6.20014,   4.39928,   2.60096,  -3.50012,        -5.30098,  -7.0993 ,  -8.90016, -10.70102] # cm
 
 class Radiation:
 
@@ -932,7 +933,7 @@ class EndRing:
         #ProbeArr[0] = bias.R_VLem
 
         # use bottom radii for rings 1-9, and middle for disk 0
-        rax = np.array([4.0,8.0,11.1,13.4,15.3,16.9,18.3,19.5,20.6,21.6]) 
+        rax = np.array([4.0,8.0,11.1,13.4,15.3,16.9,18.3,19.5,20.6,21.6]) # end cell plane
 
         self.radii = rax
         self.mid = (rax[1:] + rax[:-1])/2
@@ -1025,3 +1026,33 @@ class EndRing:
         fig.tight_layout()
 
         return fig,axs, ax0
+
+
+class Dalpha:
+
+    def __init__(self,shot):
+
+        self.shot = shot
+        self.load()
+
+    def load(self):
+        tree = mds.Tree("wham",self.shot)
+
+        # load data from nodes
+        root = "diag.midplane_da" 
+        data = np.array([tree.getNode(f"{root}.los_{j+1:02d}").getData().data() for j in range(8)])
+        time = tree.getNode(f"{root}.los_01").dim_of().data() * 1e3 #ms
+        radius = tree.getNode(f"{root}.impact_param").getData().data() / 10 # cm
+
+        self.data = data[:-2] # ignore last two channels for now
+        self.radius = radius[:-2]
+        self.time = time
+
+    def plot(self):
+
+        fig,axs = plt.subplots(1,1)
+        axs.contourf(self.time, self.radius, self.data)
+        axs.set_title(self.shot)
+        axs.set_ylabel("radius [cm]")
+        axs.set_xlabel("time [ms]")
+
