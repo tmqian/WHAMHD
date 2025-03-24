@@ -61,7 +61,9 @@ def scipy_min(chord_positions, measured_integrals, radial_model,
                         integration_points=np.linspace(-30, 30, 100),
                         param_names=None, 
                         initial_guess=None, 
-                        method=None):
+                        method=None,
+                        plot=False,
+              ):
     """
     Finds optimal parameters for a radial model to match measured line integrals.
     
@@ -88,13 +90,15 @@ def scipy_min(chord_positions, measured_integrals, radial_model,
     
     # Convert optimized parameters to dictionary
     optimized_params = dict(zip(param_names, result.x))
-    print("Optimized parameters:", optimized_params)
-    
-    # Plot results
-    visualize_results(measured_integrals, chord_positions, radial_model, optimized_params, 
-                     integration_points)
-    
+    #print("Optimized parameters:", optimized_params)
+   
+    if plot:
+        # Plot results
+        visualize_results(measured_integrals, chord_positions, radial_model, optimized_params, integration_points)
+
     return optimized_params
+
+        
 
 
 def visualize_results(measured_integrals, chord_positions, radial_model, optimized_params, 
