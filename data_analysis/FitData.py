@@ -57,11 +57,11 @@ def objective_function(params, radial_model, chord_positions, integration_points
 
 
 # Optimize model parameters to fit measured data
-def optimize_radial_model(chord_positions, measured_integrals, radial_model, 
+def scipy_min(chord_positions, measured_integrals, radial_model, 
                         integration_points=np.linspace(-30, 30, 100),
                         param_names=None, 
                         initial_guess=None, 
-                        optimization_method=None):
+                        method=None):
     """
     Finds optimal parameters for a radial model to match measured line integrals.
     
@@ -71,8 +71,8 @@ def optimize_radial_model(chord_positions, measured_integrals, radial_model,
     - radial_model (function): The radial model function to optimize.
     - integration_points (array-like, optional): X-coordinates for integration.
     - param_names (list, optional): Names of parameters in the radial model.
-    - initial_params (array-like, optional): Initial guess for parameter values.
-    - optimization_method (str, optional): Optimization method for scipy.optimize.minimize.
+    - initial_guess (array-like, optional): Initial guess for parameter values.
+    - method (str, optional): Optimization method for scipy.optimize.minimize.
     
     Returns:
     - dict: Optimized parameter values.
@@ -83,7 +83,7 @@ def optimize_radial_model(chord_positions, measured_integrals, radial_model,
         initial_guess, 
         args=(radial_model, chord_positions, integration_points, 
               measured_integrals, param_names),
-        method=optimization_method,
+        method=method,
     )
     
     # Convert optimized parameters to dictionary
