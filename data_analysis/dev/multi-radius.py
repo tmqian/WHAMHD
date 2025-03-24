@@ -8,7 +8,6 @@ from multi import get_time_index
 from FitData import *
 
 
-
 shot = int(sys.argv[1])
 
 tax = [3,4.8,7]
@@ -25,6 +24,7 @@ try:
     axuv = AXUV(shot)
     axuv_data = True
 except:
+    print('no axuv')
     axuv_data = False
 
 try:
@@ -63,9 +63,9 @@ for k,t in enumerate(tax):
                   method="Nelder-Mead",
         ) 
         predicted_profile = m1(radius, **opt)
-        predicted_integrals = forward_integrate(m1, r_axuv, line, **opt)
+        predicted_integrals = forward_integrate(m1, radius, line, **opt)
 
-        axs[0,0].plot(r_axuv, predicted_integrals, '--', color=cmap[k]) 
+        axs[0,0].plot(radius, predicted_integrals, '--', color=cmap[k]) 
         axs[0,1].plot(radius, predicted_profile, color=cmap[k]) 
 
     if shine_data:
@@ -73,24 +73,23 @@ for k,t in enumerate(tax):
         axs[1,2].plot(shine.radius, shine.nr[t1,:], color=cmap[k])  
         # shine.nr [400,100] T,R
     
-        ch = np.array([i for i in range(11) if i != 5])
-        dShine = nbi.d_arr[ch]
         # nbi [10,40000] R,T
         t1,t2 = get_time_index(nbi.time, t,t)
 
-        r_shine = nbi.radius
-        f_shine = dShine[:,t1]
+        ch = np.array([i for i in range(15) if i != 5])
+        r_shine = shine.chord_radius
+        f_shine = nbi.d_arr[ch,t1]
         axs[1,0].plot(r_shine, f_shine, 'o', color=cmap[k])  
 
         opt = scipy_min(r_shine, f_shine, m1, 
                   param_names = ["A", "w", "r0"],
-                  initial_guess = [1.0, 10, 0],
+                  initial_guess = [1.0, 5, 0],
                   method="Nelder-Mead",
         ) 
         predicted_profile = m1(radius, **opt)
-        predicted_integrals = forward_integrate(m1, r_shine, line, **opt)
+        predicted_integrals = forward_integrate(m1, radius, line, **opt)
 
-        axs[1,0].plot(r_shine, predicted_integrals, '--', color=cmap[k]) 
+        axs[1,0].plot(radius, predicted_integrals, '--', color=cmap[k]) 
         axs[1,1].plot(radius, predicted_profile, color=cmap[k]) 
 
     if bias_data:
@@ -111,19 +110,19 @@ for k,t in enumerate(tax):
 
         opt = scipy_min(r_dalpha, f_dalpha, m1, 
                   param_names = ["A", "w", "r0"],
-                  initial_guess = [1e9, 10, 2],
+                  initial_guess = [1e9, 5, 2],
                   method="Nelder-Mead",
         ) 
         predicted_profile = m1(radius, **opt)
-        predicted_integrals = forward_integrate(m1, r_dalpha, line, **opt)
+        predicted_integrals = forward_integrate(m1, radius, line, **opt)
 
-        axs[2,0].plot(r_dalpha, predicted_integrals, '--', color=cmap[k]) 
+        axs[2,0].plot(radius, predicted_integrals, '--', color=cmap[k]) 
         axs[2,1].plot(radius, predicted_profile, color=cmap[k]) 
 
-axs[0,0].set_title("chord, un-inverted")
-axs[0,1].set_title("radius, inverted")
-axs[0,2].set_title("physics, interpretted")
-axs[1,1].set_ylim(bottom=0)
+axs[0,0].set_title("measured chords")
+axs[0,1].set_title("fitted profiles")
+axs[0,2].set_title("physics")
+
 axs[0,0].set_ylabel("AXUV")
 axs[1,0].set_ylabel("NBI Shinethrough")
 axs[2,0].set_ylabel("D-alpha")
@@ -140,7 +139,9 @@ axs[-1,1].set_xlabel("midplane radius [cm]")
 axs[-1,2].set_xlabel("midplane radius [cm]")
 
 for a in np.ndarray.flatten(axs):
-    a.grid()
+    a.minorticks_on()
+    a.grid(which='both')
+    a.grid(which='minor', linestyle=":", linewidth=0.5)
 
 fig.suptitle(shot)
 fig.tight_layout()

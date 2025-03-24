@@ -419,9 +419,16 @@ class AXUV:
         b = []
         Ohm = []
         label = []
+
+        # the mds node changed names on March 24 2025
+        I_tag = "current"
+        if self.shot < 250324000:
+            I_tag = "photo_current"
+
         for j in range(20):
             root = f"diag.axuv.DIODEARRAY1.CH_{j+1:02d}"
-            data.append(tree.getNode(f'{root}.PHOTOCURRENT').getData().data())
+            data.append(tree.getNode(f'{root}.{I_tag}').getData().data())
+            #data.append(tree.getNode(f'{root}.PHOTOCURRENT').getData().data())
             label.append(tree.getNode(f"{root}.DIODE_NUM").getData().data())
 
             R.append(tree.getNode(f'{root}.R').getData().data())
@@ -430,7 +437,8 @@ class AXUV:
             b.append( tree.getNode(f'{root}.B_IMPACT').getData().data())
             Ohm.append( tree.getNode(f'{root}.RESISTOR').getData().data())
 
-        time = tree.getNode(f'{root}.PHOTOCURRENT').dim_of().data() * 1e3
+        time = tree.getNode(f'{root}.{I_tag}').dim_of().data() * 1e3
+        #time = tree.getNode(f'{root}.PHOTOCURRENT').dim_of().data() * 1e3
 
         self.data = np.array(data)
         self.label = np.array(label)
@@ -544,7 +552,7 @@ class NBI:
     def load(self):
 
         tree = mds.Tree("wham",self.shot)
-        self.d_arr = np.array([tree.getNode(f"diag.shinethru.detector_{j+1:02d}").getData().data() for j in range(14)]) * 1e3
+        self.d_arr = np.array([tree.getNode(f"diag.shinethru.detector_{j+1:02d}").getData().data() for j in range(15)]) * 1e3
         d2 = tree.getNode("diag.shinethru.detector_02").getData().data() 
         d5 = tree.getNode("diag.shinethru.detector_05").getData().data() 
         d10 = tree.getNode("diag.shinethru.detector_10").getData().data() 
@@ -561,7 +569,8 @@ class NBI:
         self.I_Beam = I_Beam
         self.V_Beam = V_Beam
         self.time = time
-        self.radius = [  9.79932,   8.001  ,   6.20014,   4.39928,   2.60096,  -3.50012,        -5.30098,  -7.0993 ,  -8.90016, -10.70102] # cm
+#        self.radius = np.array([  9.79932,   8.001  ,   6.20014,   4.39928,   2.60096,  -3.50012,        -5.30098,  -7.0993 ,  -8.90016, -10.70102]) # cm
+#        self.radius = np.array([4.08, 3.52, 2.68, 2.213, 1.28, -1.08, -1.83, -2.48, -3.03, -3.87, -0.62, -0.31, 0.31, 0.62]) * 2.4 # cm
 
 class Radiation:
 
@@ -882,6 +891,8 @@ class ShineThrough:
         self.nr = tree.getNode(f"{path}.density_prof").getData().data().T # [time, radius]
         self.time = tree.getNode(f"{path}.central_dens").dim_of().data() * 1e3 # ms
         self.radius = tree.getNode(f"{path}.density_prof").dim_of(0).data() * 100 # cm
+        
+        self.chord_radius = tree.getNode(f"{path}.detector_pos").getData().data() * 100 # cm
 
     def plot(self, t_array=[6]):
 
