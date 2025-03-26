@@ -423,7 +423,7 @@ class AXUV:
         # the mds node changed names on March 24 2025
         I_tag = "current"
         if self.shot < 250324000:
-            I_tag = "photo_current"
+            I_tag = "photocurrent"
 
         for j in range(20):
             root = f"diag.axuv.DIODEARRAY1.CH_{j+1:02d}"
