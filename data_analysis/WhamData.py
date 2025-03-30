@@ -286,6 +286,25 @@ class BiasPPS(WhamDiagnostic):
 
         fig.tight_layout()
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+            summary = {}
+
+            # this will cause a bug later
+            Vlim = np.max(self.Ldem_V)
+            Vring = np.min(self.Rdem_V)
+            summary['limiter_bias'] = Vlim
+            summary['ring_bias'] = Vring
+
+        result['summary'] = summary
+        return result
+
 class Interferometer(WhamDiagnostic):
 
     def __init__(self, shot):
@@ -326,6 +345,33 @@ class Interferometer(WhamDiagnostic):
             # propagate change forward from t=t0
             self.linedens[t:] += N*dn
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            # smooth
+            T = self.time
+            nint = self.linedens
+            navg = nint/(2*0.136)
+            N = savgol(navg, 501,3)
+            jm = np.argmax(N)
+                           
+            t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
+            summary['max line avg dens (m^-3)'] = N[jm]
+            summary['max time (ms)'] = T[jm]
+            summary['dens 4.8ms (m^-3)'] = N[t1]
+            summary['dens 9.8ms (m^-3)'] = N[t2]
+            summary['dens 14.8ms (m^-3)'] = N[t3]
+
+            result['summary'] = summary
+        return result
 
 class FluxLoop(WhamDiagnostic):
 
@@ -449,6 +495,38 @@ class FluxLoop(WhamDiagnostic):
         axs[0,0].set_ylabel("loop a")
         axs[1,0].set_ylabel("loop b")
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            # smooth
+            T = self.time
+            F1 = savgol(self.FL1/1e3, 501,3)
+            F2 = savgol(self.FL2/1e3, 501,3)
+            jm = np.argmax(F1)
+                           
+            t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
+            summary['max flux (kMx)'] = F1[jm]
+            summary['max time (ms)'] = T[jm]
+
+            summary['flux 4.8ms (kMx)'] = F1[t1]
+            summary['flux 9.8ms (kMx)'] = F1[t2]
+            summary['flux 14.8ms (kMx)'] = F1[t3]
+
+            summary['flux2 4.8ms (kMx)'] = F2[t1]
+            summary['flux2 9.8ms (kMx)'] = F2[t2]
+            summary['flux2 14.8ms (kMx)'] = F2[t3]
+            result['summary'] = summary
+
+        return result
+
 class AXUV(WhamDiagnostic):
 
     def __init__(self, shot):
@@ -556,6 +634,33 @@ class ECH(WhamDiagnostic):
 
         plt.show()
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            T = self.time
+            P = self.Fwg_filt
+            t1,t2 = get_time_array(T, [2.5,4.5])
+            Pech = np.mean(P[t1:t2])
+                           
+            summary['P ECH (kW)'] = Pech
+            # todo: get pulse duration
+
+            result['summary'] = summary
+
+            if Pech < 10:
+                # correct for blank data
+                retult['is_loaded'] = False
+
+        return result
+
 
 class EdgeProbes(WhamDiagnostic):
 
@@ -585,6 +690,32 @@ class EdgeProbes(WhamDiagnostic):
         axs.set_xlim(-5,35)
         fig.suptitle(self.shot)
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            T = self.time
+            V = self.ProbeArr[6]
+
+            t1,t2 = get_time_array(T, [2,9])
+            Vf = np.mean(V[t1:t2])
+                           
+            summary['V float (V)'] = Vf
+
+            if np.abs(Vf) < 1:
+                # correct for blank data
+                retult['is_loaded'] = False
+            result['summary'] = summary
+
+        return result
+
 class NBI(WhamDiagnostic):
 
     def __init__(self, shot):
@@ -610,8 +741,39 @@ class NBI(WhamDiagnostic):
         self.I_Beam = I_Beam
         self.V_Beam = V_Beam
         self.time = time
-#        self.radius = np.array([  9.79932,   8.001  ,   6.20014,   4.39928,   2.60096,  -3.50012,        -5.30098,  -7.0993 ,  -8.90016, -10.70102]) # cm
-#        self.radius = np.array([4.08, 3.52, 2.68, 2.213, 1.28, -1.08, -1.83, -2.48, -3.03, -3.87, -0.62, -0.31, 0.31, 0.62]) * 2.4 # cm
+
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            T = self.time
+            I = self.I_Beam
+            V = self.V_Beam
+            P = I*V
+
+            t1,t2 = get_time_array(T, [4,12])
+            Pnbi = np.mean(P[t1:t2])
+            Vnbi = np.mean(V[t1:t2])
+            Inbi = np.mean(I[t1:t2])
+                           
+            summary['P NBI (kW)'] = Pnbi
+            summary['V NBI (kW)'] = Vnbi
+            summary['I NBI (kW)'] = Inbi
+            # todo: get pulse duration
+
+            if Pnbi < 50:
+                # correct for blank data
+                retult['is_loaded'] = False
+            result['summary'] = summary
+
+        return result
 
 class Radiation(WhamDiagnostic):
 
@@ -670,6 +832,7 @@ class Radiation(WhamDiagnostic):
 
         #fig.suptitle(s.shot)
         fig.tight_layout()
+
 
 class Bolometer(WhamDiagnostic):
     def __init__(self, shot):
@@ -940,6 +1103,32 @@ class ShineThrough(WhamDiagnostic):
         axs.set_xlabel("radius [cm]")
         axs.set_ylabel("density [m^-3]")
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            # smooth
+            T = self.time
+            N = self.nt
+            jm = np.argmax(N)
+                           
+            t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
+            summary['max shinethrough dens (m^-3)'] = N[jm]
+            summary['max time (ms)'] = T[jm]
+            summary['dens 4.8ms (m^-3)'] = N[t1]
+            summary['dens 9.8ms (m^-3)'] = N[t2]
+            summary['dens 14.8ms (m^-3)'] = N[t3]
+
+            result['summary'] = summary
+        return result
+
 class IonProbe(WhamDiagnostic):
 
     def __init__(self, shot):
@@ -1099,3 +1288,45 @@ class Dalpha(WhamDiagnostic):
         axs.set_ylabel("radius [cm]")
         axs.set_xlabel("time [ms]")
 
+class Bdot(WhamDiagnostic):
+
+    def __init__(self,shot):
+        super().__init__(shot)
+
+    def load(self,
+        source = "raw.acq2206_043",
+           ):
+
+        tree = mds.Tree("wham",self.shot)
+        ch_arr = [1,2,3,4]
+        node = [tree.getNode(f"{source}.ch_{j:02d}") for j in ch_arr]
+        data = [n.getData().data() for n in node]
+        
+        time = node[0].dim_of().data() * 1e3
+        diff = -(data[0] + data[3])/2 * 1e3 # mV
+
+        self.data = data
+        self.Br = diff
+        self.time = time
+
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            T = self.time
+            t1,t2 = get_time_array(T, [2,9])
+            dB = np.mean(self.Br[t1:t2])
+                           
+            if np.abs(dB) < 1:
+                # correct for blank data
+                retult['is_loaded'] = False
+            result['summary'] = summary
+
+        return result

@@ -9,7 +9,6 @@ class WHAM:
     def __init__(self, shot):
         self.shot = shot
 
-        #self.gas = Gas(shot)
         #self.radiation = Radiation(shot)
         #self.gas = Gas(shot)
         #self.ion_probe = IonProbe(shot)
@@ -18,16 +17,17 @@ class WHAM:
         # Dictionary of diagnostic classes to instantiate
         self.diagnostic_classes = {
             'bias': BiasPPS,
-            'interferometer': Interferometer,
             'flux': FluxLoop,
-            'axuv': AXUV,
+            'interferometer': Interferometer,
+            #'axuv': AXUV,
             'ech': ECH,
-            'edge_probes': EdgeProbes,
+            #'edge_probes': EdgeProbes,
             'nbi': NBI,
             'shine' : ShineThrough,
-            'bolometer': Bolometer,
-            'dalpha': Dalpha,
-            'oes': Spectrometer
+            'bdot' : Bdot,
+            #'bolometer': Bolometer,
+            #'dalpha': Dalpha,
+            #'oes': Spectrometer
         }
         
         # Load each diagnostic
