@@ -1,4 +1,6 @@
 import json
+import MDSplus as mds
+
 from WhamData import *
 from DataSpec import Spectrometer
 
@@ -8,6 +10,7 @@ class WHAM:
     """
     def __init__(self, shot):
         self.shot = shot
+        self.tree =  mds.Tree("wham",shot)
 
         #self.radiation = Radiation(shot)
         #self.gas = Gas(shot)
@@ -20,14 +23,15 @@ class WHAM:
             'flux': FluxLoop,
             'interferometer': Interferometer,
             #'axuv': AXUV,
+            'gas': Gas,
             'ech': ECH,
-            #'edge_probes': EdgeProbes,
+            'edge_probes': EdgeProbes,
             'nbi': NBI,
             'shine' : ShineThrough,
             'bdot' : Bdot,
             #'bolometer': Bolometer,
             #'dalpha': Dalpha,
-            #'oes': Spectrometer
+            'oes': Spectrometer
         }
         
         # Load each diagnostic
@@ -76,6 +80,19 @@ class WHAM:
                 "shot": self.shot,
                 "is_loaded": {
                     name: getattr(self, name).is_loaded
+                    for name in self.diagnostic_classes.keys()
+                }
+            }
+
+        elif detail_level == 'summary':
+            data = self.to_dict()['diagnostics']
+            return {
+                "shot": self.shot,
+                "diagnostics": {
+                    name: {
+                        "is_loaded": data[name]['is_loaded'],
+                        "summary": data[name]['summary']
+                    }
                     for name in self.diagnostic_classes.keys()
                 }
             }

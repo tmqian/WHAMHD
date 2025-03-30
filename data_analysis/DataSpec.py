@@ -453,3 +453,24 @@ class Spectrometer(WhamDiagnostic):
         ax.errorbar(C.los, C.Vi/1e3, yerr=C.Vi_err/1e3, fmt='o-', label='self.shot')
 
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            C = self.C
+
+            Ti0 = C.Ti[5] # los 1.43 cm
+            Vip = C.Vi[-2]/1e3 # los 12.7 cm
+            
+            summary['Ti at r=1.43 (eV)'] = float(Ti0)
+            summary['Vi at r=12.7 (km/s)'] = float(Vip)
+            result['summary'] = summary
+
+        return result

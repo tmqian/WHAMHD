@@ -26,10 +26,15 @@ class WhamDiagnostic:
     """Base class for all WHAM diagnostics"""
     def __init__(self, shot):
         self.shot = shot
+
         self.is_loaded = False
         self.load_status_message = ""
 
         try:
+            if hasattr(super(), 'tree') and super().tree is not None:
+                self.tree = super().tree
+            else:
+                self.tree = mds.Tree("wham", shot)
             self.load()
             self.is_loaded = True
         except Exception as e:
@@ -174,23 +179,22 @@ class BiasPPS(WhamDiagnostic):
             return
 
         # set up tree
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
 
         # load data from nodes
-        data = "bias"
-        L_Dem = tree.getNode(f"{data}.PPS_L.demand.filtered").getData().data()
-        L_ILem = tree.getNode(f"{data}.PPS_L.current.filtered").getData().data()
-        L_VLem = tree.getNode(f"{data}.PPS_L.voltage.filtered").getData().data()
-        L_Vpps = tree.getNode(f"{data}.PPS_L.voltage_PWM.signal").getData().data()
-        L_VFB = tree.getNode(f"{data}.PPS_L.feedback_dmd.signal").getData().data()
+        L_Dem = tree.getNode(f"bias.PPS_L.demand.filtered").getData().data()
+        L_ILem = tree.getNode(f"bias.PPS_L.current.filtered").getData().data()
+        L_VLem = tree.getNode(f"bias.PPS_L.voltage.filtered").getData().data()
+        L_Vpps = tree.getNode(f"bias.PPS_L.voltage_PWM.signal").getData().data()
+        L_VFB = tree.getNode(f"bias.PPS_L.feedback_dmd.signal").getData().data()
 
-        R_Dem = tree.getNode(f"{data}.PPS_R.demand.filtered").getData().data()
-        R_ILem = tree.getNode(f"{data}.PPS_R.current.filtered").getData().data()
-        R_VLem = tree.getNode(f"{data}.PPS_R.voltage.filtered").getData().data()
-        R_Vpps = tree.getNode(f"{data}.PPS_R.voltage_PWM.signal").getData().data()
-        R_VFB = tree.getNode(f"{data}.PPS_R.feedback_dmd.signal").getData().data()
+        R_Dem = tree.getNode(f"bias.PPS_R.demand.filtered").getData().data()
+        R_ILem = tree.getNode(f"bias.PPS_R.current.filtered").getData().data()
+        R_VLem = tree.getNode(f"bias.PPS_R.voltage.filtered").getData().data()
+        R_Vpps = tree.getNode(f"bias.PPS_R.voltage_PWM.signal").getData().data()
+        R_VFB = tree.getNode(f"bias.PPS_R.feedback_dmd.signal").getData().data()
 
-        time = tree.getNode(f"{data}.PPS_L.demand.filtered").dim_of().data() * 1e3 # ms
+        time = tree.getNode(f"bias.PPS_L.demand.filtered").dim_of().data() * 1e3 # ms
 
 
         # save
@@ -226,7 +230,7 @@ class BiasPPS(WhamDiagnostic):
 
         # load demand
         if self.shot > 250301000:
-            tree = mds.Tree("wham",self.shot)
+            tree = self.tree
             tbias = tree.getNode("bias.bias_params.trig_time").getData().data() # t0 for bias demand waveform
             self.Ldem_T = tree.getNode("bias.bias_params.dmd_waveform.pps_L_T").getData().data() + tbias*1e3
             self.Ldem_V = tree.getNode("bias.bias_params.dmd_waveform.pps_L_V").getData().data()
@@ -312,7 +316,7 @@ class Interferometer(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         linedens = tree.getNode("diag.interferomtr.linedens").getData().data() 
         offset = np.mean(linedens[-2000:])
 
@@ -380,7 +384,7 @@ class FluxLoop(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
 
         # convert from Weber to Maxwell
         FL1 = tree.getNode("diag.fluxloops.fl1").getData().data() * 1e8
@@ -471,7 +475,7 @@ class FluxLoop(WhamDiagnostic):
 
     def load_raw(self, axs=None, N=100, alpha=0.7):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
 
         # convert from Weber to Maxwell
         raw = "raw.acq1001_631"
@@ -533,7 +537,7 @@ class AXUV(WhamDiagnostic):
         super().__init__(shot)
 
     def load(self):
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
 
         data = []
         R = []
@@ -601,7 +605,7 @@ class ECH(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
 
         source = "ech.ech_proc"
         self.Fwg_filt = tree.getNode(f"{source}.wg_monitor_f.filtered").getData().data()
@@ -673,7 +677,7 @@ class EdgeProbes(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         source = "diag.probe_ring"
 
         self.ProbeArr = [ tree.getNode(f"{source}.P{j*30:03d}.voltage.signal").getData().data() for j in range(12) ]
@@ -711,7 +715,7 @@ class EdgeProbes(WhamDiagnostic):
 
             if np.abs(Vf) < 1:
                 # correct for blank data
-                retult['is_loaded'] = False
+                result['is_loaded'] = False
             result['summary'] = summary
 
         return result
@@ -723,7 +727,7 @@ class NBI(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         self.d_arr = np.array([tree.getNode(f"diag.shinethru.detector_{j+1:02d}").getData().data() for j in range(15)]) * 1e3
         d2 = tree.getNode("diag.shinethru.detector_02").getData().data() 
         d5 = tree.getNode("diag.shinethru.detector_05").getData().data() 
@@ -782,7 +786,7 @@ class Radiation(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
 
         try:
             soft_xray = tree.getNode("diag.soft_xray.spectrum").getData().data()
@@ -840,7 +844,7 @@ class Bolometer(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         node = "diag.cu_bolom"
         self.data = np.array([tree.getNode(f"{node}.ch_{j+1:02d}").getData().data()  for j in range(7)])
         self.time = tree.getNode(f"{node}.time").getData().data()
@@ -958,7 +962,7 @@ class adhocGas(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         raw = "raw.gas_scope"
         
         data = [tree.getNode(f"{raw}.ch_{j+1:02d}.signal").getData().data() for j in range(4)]
@@ -1006,7 +1010,7 @@ class Gas(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
 
         gasDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
         mainDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
@@ -1072,6 +1076,28 @@ class Gas(WhamDiagnostic):
         #fig.suptitle(s.shot)
         fig.tight_layout()
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            
+            # smooth
+            T = self.t_asdex
+            G = savgol(self.asdex_hi, 501,3)
+            jm = np.argmax(G)
+                           
+            summary['max Gas (torr)'] = G[jm]
+            summary['max time (ms)'] = T[jm]
+            result['summary'] = summary
+
+        return result
+
 class ShineThrough(WhamDiagnostic):
 
     def __init__(self, shot):
@@ -1079,7 +1105,7 @@ class ShineThrough(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         path = "diag.shinethru.linedens"
 
         self.nt = tree.getNode(f"{path}.central_dens").getData().data()
@@ -1136,7 +1162,7 @@ class IonProbe(WhamDiagnostic):
 
     def load(self):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         path = "diag.ion_probe"
         
         self.Icol = tree.getNode(f"{path}.I_col").getData().data() 
@@ -1150,7 +1176,7 @@ class EndRing(WhamDiagnostic):
     def load(self):
 
         # set up tree
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         source = "bias.end_rings"
 
         ProbeArr = np.array([tree.getNode(f"{source}.N{j}.voltage.signal").getData().data() for j in range(10)])
@@ -1263,7 +1289,7 @@ class Dalpha(WhamDiagnostic):
         super().__init__(shot)
 
     def load(self):
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
 
         # load data from nodes
         root = "diag.midplane_da" 
@@ -1297,7 +1323,7 @@ class Bdot(WhamDiagnostic):
         source = "raw.acq2206_043",
            ):
 
-        tree = mds.Tree("wham",self.shot)
+        tree = self.tree
         ch_arr = [1,2,3,4]
         node = [tree.getNode(f"{source}.ch_{j:02d}") for j in ch_arr]
         data = [n.getData().data() for n in node]
