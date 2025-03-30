@@ -42,7 +42,54 @@ class WHAM:
             status_str = "✓ Loaded" if diag.is_loaded else f"✗ Failed: {diag.load_status_message}"
             print(f"  {name}: {status_str}")
 
-shot = 250326066
-wham = WHAM(shot)
-import pdb
-pdb.set_trace()
+    def to_dict(self, detail_level='summary'):
+        """
+        Create a dictionary summary of the shot data
+        
+        Parameters:
+        -----------
+        detail_level : str
+            Level of detail to include:
+            - 'status': Only loading status
+            - 'summary': Key metrics (default)
+            - 'full': Complete dataset
+        """
+        summary = {
+            "shot": self.shot,
+            "diagnostics": {}
+        }
+        
+        # Add data from all diagnostics with the specified detail level
+        for name in self.diagnostic_classes.keys():
+            diag = getattr(self, name)
+            summary["diagnostics"][name] = diag.to_dict(detail_level)
+        
+        return summary
+
+    def to_json(self, detail_level='status', indent=None):
+        """
+        Convert the summary dictionary to a JSON string
+        """
+        
+        if detail_level == 'status':
+            return {
+                "shot": self.shot,
+                "is_loaded": {
+                    name: getattr(self, name).is_loaded
+                    for name in self.diagnostic_classes.keys()
+                }
+            }
+
+        # Regular format for other detail levels
+        summary = {
+            "shot": self.shot,
+            "diagnostics": {}
+        }
+    
+        # Add data from all diagnostics with the specified detail level
+        for name in self.diagnostic_classes.keys():
+            diag = getattr(self, name)
+            summary["diagnostics"][name] = diag.to_dict(detail_level)
+    
+        return summary
+
