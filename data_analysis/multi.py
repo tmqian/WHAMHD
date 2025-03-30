@@ -278,10 +278,18 @@ def plot12(shot, save="", plot_limiter_bias=False, tag=""):
         ax.plot(t,p1/ne/eV,'C3', label="Flux Loop 1 [eV]")
         ax.plot(t,p2/ne/eV,'C2', label="Flux Loop 2 [eV]")
         ax.plot(t,p3/ne/eV,'C0', label="Flux Loop 3 [eV]")
-        ax.set_ylim(0,6000)
+        ax.set_ylim(0,800)
     except:
         print(f"Issue with Interferometer {shot}")
     
+    # Shine Through
+    try:
+        shine = ShineThrough(shot)
+        j1,j2 = get_time_index(shine.time,1,14.5)
+        axs[1,1].plot(shine.time[j1:j2], shine.nt[j1:j2], 'C1', label=r"Shine Through Density [m$^{-3}$]")
+    except:
+        print(f"Issue with ShineThrough {shot}")
+
     ## end ring
     #try:
     #    ring = EndRing(shot)
@@ -703,4 +711,134 @@ def plot8(shot, axs=None, plotLimiter=True):
         #plt.savefig(f"out/shot-{shot}.png")
         plt.show()
 
+
+# plot
+def plot82(shot, axs=None, plotLimiter=True, lw=1, color=None):
+
+    shot = int(shot)
+    kwargs = {'lw': lw, 'color': color} 
+
+    tag = f"{shot}"
+    # Bias plots
+    try:
+        bias = BiasPPS(shot)
+
+        if plotLimiter:
+
+            V = bias.L_VLem
+            I = bias.L_ILem - V/1.4
+
+            axs[2,0].set_title(r"Limiter Potential [V]")
+            axs[3,0].set_title(r"Limiter Current [A]")
+
+        else:
+            V = bias.R_VLem
+            I = bias.R_ILem 
+
+            axs[2,0].set_title(r"Ring Potential [V]")
+            axs[3,0].set_title(r"Ring Current [A]")
+
+        time = bias.time
+        axs[2,0].plot(time, V, lw=lw, color=color)
+        axs[3,0].plot(time, I, lw=lw, color=color)
+
+        j1,j2 = get_time_index(time, 7,9)
+        V_ref = np.mean(V[j1:j2])
+        I_ref = np.mean(I[j1:j2])
+        tag += f", {V_ref:.1f}, {I_ref:.2f}"
+
+        # plot demand
+        axs[2,0].plot(bias.Rdem_T, bias.Rdem_V, ls='--', alpha=0.6, lw=1, color=color)
+        axs[2,0].plot(bias.Ldem_T, bias.Ldem_V, ls='--', alpha=0.6, lw=1, color=color)
+    except:
+        print(f"Issue with Bias {shot}")
+        tag += f", -, -"
+
+        # bias demand
+        bias = BiasPPS(shot, no_dtacq=True)
+        axs[2,0].plot(bias.Rdem_T, bias.Rdem_V, ls='--', alpha=0.6,lw=1, color=color)
+        axs[2,0].plot(bias.Ldem_T, bias.Ldem_V, ls='--', alpha=0.6,lw=1, color=color)
+
+
+    # ECH plots
+    try:
+        ech = ECH(shot)
+        ax = axs[0,0]
+        ax.plot(ech.time,ech.Fwg_filt, label=f"{shot}", lw=lw, color=color)
+        ax.set_title("ECH Power [kW]")
+
+        j1,j2 = get_time_index(ech.time, 3,9)
+        P_ech = np.mean(ech.Fwg_filt[j1:j2])
+        #tag += f", {P_ech:.1f}"
+    except:
+        print(f"Issue with ECH {shot}")
+        #tag += f", -"
+
+
+    # NBI
+    try:
+        nbi = NBI(shot)
+        ax = axs[1,0]
+
+        P = nbi.V_Beam * nbi.I_Beam
+        ax.plot(nbi.time, P, lw=lw, color=color)
+        ax.set_title("NBI Power [kW]")
+    
+        j1,j2 = get_time_index(nbi.time, 6,12)
+        P_nbi = np.mean(P[j1:j2])
+        #tag += f", {P_nbi:.1f}"
+    except:
+        print(f"Issue with NBI {shot}")
+        #tag += f", -"
+
+    # Flux
+    try:
+        flux = FluxLoop(shot)
+        axs[0,1].plot(flux.time,flux.FL1/1000, lw=lw, color=color)
+        axs[0,1].set_title("Flux Loop 1 [kMx]")
+        axs[1,1].plot(flux.time,flux.FL2/1000, lw=lw, color=color)
+        axs[1,1].set_title("Flux Loop 2 [kMx]")
+
+        win = 201; poly = 3
+        j1,j2 = get_time_index(flux.time, 4,4.5)
+        F = savgol(flux.FL1/1e3, win,poly)
+        F1 = np.max(F[j1:j2])
+        tag += f", {F1:.2f}"
+
+        j1,j2 = get_time_index(flux.time, 9.5,10.5)
+        F = savgol(flux.FL1/1e3, win,poly)
+        F1 = np.max(F[j1:j2])
+        tag += f", {F1:.2f}"
+
+    except:
+        print(f"Issue with Flux Loop {shot}")
+        tag += f", -"
+        tag += f", -"
+
+    # intf
+    try:
+        intf = Interferometer(shot)
+
+        r0 = 0.136
+        axs[2,1].plot(intf.time, intf.linedens/(2*r0), lw=lw, color=color)
+        #axs[2,1].plot(intf.time, intf.linedens, lw=lw)
+        #axs[2,1].set_title(r"Line integrated density [m$^{-2}$]")
+        axs[2,1].set_title(r"Line Averaged density [m$^{-3}$]")
+
+        j1,j2 = get_time_index(intf.time, 9.5,10.5)
+        N_int = np.mean(intf.linedens[j1:j2])
+        tag += f", {N_int:.1e}"
+    except:
+        print(f"Issue with Interferometer {shot}")
+        tag += f", -"
+
+    # Edge Probe
+    try:
+        edge = EdgeProbes(shot)
+        ax = axs[3,1]
+        ax.plot(edge.time, edge.ProbeArr[0], lw=lw, color=color)
+        ax.set_title("Edge Fluctuation [V]")
+    except:
+        print(f"Issue with egde probe {shot}")
+    print(tag)
 
