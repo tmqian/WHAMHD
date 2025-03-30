@@ -1,3 +1,5 @@
+from WhamData import WhamDiagnostic
+
 import sys
 import os
 import warnings
@@ -342,13 +344,17 @@ def process(filename,args,savefig=True,LOS=None):
     return results
 
 
-class Spectrometer:
+class Spectrometer(WhamDiagnostic):
 
     def __init__(self,shot,
-                      root="/mnt/n/whamdata/optical_spectroscopy/SPEs",
                  ):
+        super().__init__(shot)
 
-        self.shot = shot
+    def load(self,
+            root="/mnt/n/whamdata/optical_spectroscopy/SPEs",
+            ):
+
+        shot = str(self.shot)
         year = shot[:2]
         month = shot[2:4]
         day = shot[4:6]

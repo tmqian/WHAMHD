@@ -22,6 +22,56 @@ classes:
 Updated 15 January 2025
 '''
 
+class WhamDiagnostic:
+    """Base class for all WHAM diagnostics"""
+    def __init__(self, shot):
+        self.shot = shot
+        self.is_loaded = False
+        self.load_status_message = ""
+
+        try:
+            self.load()
+            self.is_loaded = True
+        except Exception as e:
+            self.load_status_message = str(e)
+            print(f"Error loading {self.__class__.__name__} for shot {shot}: {str(e)}")
+
+    def load(self):
+        """Each subclass must implement this method to load its data"""
+        raise NotImplementedError("Subclasses must implement load()")
+
+    def to_dict(self, detail_level='summary'):
+        """
+        Convert diagnostic data to a dictionary
+        
+        Parameters:
+        -----------
+        detail_level : str
+            Level of detail to include:
+            - 'status': Only loading status
+            - 'summary': Key metrics (default)
+            - 'full': Complete dataset
+            
+        Returns:
+        --------
+        dict
+            Dictionary representation of the diagnostic data
+        """
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+        
+        if not self.is_loaded:
+            result["error"] = self.load_status_message
+            return result
+            
+        # For higher detail levels, subclasses must implement
+        if detail_level in ['summary', 'full']:
+            raise NotImplementedError(f"Subclasses must implement to_dict() with {detail_level} detail level")
+            
+        return result
+
 # Helper Functions
 
 def zero_offset(f,idx=2000):
@@ -96,7 +146,7 @@ def STFT2(signal, time,
 
 ### End Helper
 
-class BiasPPS:
+class BiasPPS(WhamDiagnostic):
 
     def __init__(self, shot,
                        ILEM_gain=-500,
@@ -105,7 +155,6 @@ class BiasPPS:
                        no_dtacq = False
                  ):
 
-        self.shot = shot
         if shot < 240728011:
             # this is when I fixed the double (-) sign
             VLEM_gain *= -1
@@ -113,14 +162,16 @@ class BiasPPS:
         self.ILEM_gain = ILEM_gain
         self.VLEM_gain = VLEM_gain
         self.VFBK_gain = VFBK_gain
+        self.no_dtacq = no_dtacq
 
-        if no_dtacq:
+        super().__init__(shot)
+
+
+    def load(self):
+
+        if self.no_dtacq:
             self.load_labview_demand()
-        else:
-            self.load()
-
-    def load(self, t_max=100 #ms
-            ):
+            return
 
         # set up tree
         tree = mds.Tree("wham",self.shot)
@@ -235,12 +286,10 @@ class BiasPPS:
 
         fig.tight_layout()
 
-class Interferometer:
+class Interferometer(WhamDiagnostic):
 
     def __init__(self, shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -278,12 +327,10 @@ class Interferometer:
             self.linedens[t:] += N*dn
 
 
-class FluxLoop:
+class FluxLoop(WhamDiagnostic):
 
     def __init__(self, shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -402,12 +449,10 @@ class FluxLoop:
         axs[0,0].set_ylabel("loop a")
         axs[1,0].set_ylabel("loop b")
 
-class AXUV:
+class AXUV(WhamDiagnostic):
 
     def __init__(self, shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
         tree = mds.Tree("wham",self.shot)
@@ -465,7 +510,7 @@ class AXUV:
         fig.suptitle(self.shot)
 
 
-class ECH:
+class ECH(WhamDiagnostic):
 
     def __init__(self, shot,
                        downsample_rate = 40,
@@ -474,8 +519,7 @@ class ECH:
                        mean = True,
             ):
 
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -513,15 +557,14 @@ class ECH:
         plt.show()
 
 
-class EdgeProbes:
+class EdgeProbes(WhamDiagnostic):
 
     def __init__(self, shot, R1=270e3,
                              R2=2.7e3,
                              ):
 
-        self.shot = shot
         self.V_factor = (R1+R2)/R2
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -542,12 +585,10 @@ class EdgeProbes:
         axs.set_xlim(-5,35)
         fig.suptitle(self.shot)
 
-class NBI:
+class NBI(WhamDiagnostic):
 
     def __init__(self, shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -572,12 +613,10 @@ class NBI:
 #        self.radius = np.array([  9.79932,   8.001  ,   6.20014,   4.39928,   2.60096,  -3.50012,        -5.30098,  -7.0993 ,  -8.90016, -10.70102]) # cm
 #        self.radius = np.array([4.08, 3.52, 2.68, 2.213, 1.28, -1.08, -1.83, -2.48, -3.03, -3.87, -0.62, -0.31, 0.31, 0.62]) * 2.4 # cm
 
-class Radiation:
+class Radiation(WhamDiagnostic):
 
     def __init__(self, shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -632,11 +671,9 @@ class Radiation:
         #fig.suptitle(s.shot)
         fig.tight_layout()
 
-class Bolometer:
+class Bolometer(WhamDiagnostic):
     def __init__(self, shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -751,12 +788,10 @@ class Bolometer:
         fig.suptitle(self.shot)
         plt.show()
 
-class adhocGas:
+class adhocGas(WhamDiagnostic):
     # temp for week of 25-0220
     def __init__(self, shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -801,11 +836,10 @@ class adhocGas:
         plt.legend()
         plt.title(self.shot)
 
-class Gas:
-    def __init__(self, shot):
+class Gas(WhamDiagnostic):
 
-        self.shot = shot
-        self.load()
+    def __init__(self, shot):
+        super().__init__(shot)
 
     def load(self):
 
@@ -875,12 +909,10 @@ class Gas:
         #fig.suptitle(s.shot)
         fig.tight_layout()
 
-class ShineThrough:
+class ShineThrough(WhamDiagnostic):
 
     def __init__(self, shot):
-
-        self.shot = int(shot)
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -908,11 +940,10 @@ class ShineThrough:
         axs.set_xlabel("radius [cm]")
         axs.set_ylabel("density [m^-3]")
 
-class IonProbe:
-    def __init__(self, shot):
+class IonProbe(WhamDiagnostic):
 
-        self.shot = shot
-        self.load()
+    def __init__(self, shot):
+        super().__init__(shot)
 
     def load(self):
 
@@ -922,12 +953,10 @@ class IonProbe:
         self.Icol = tree.getNode(f"{path}.I_col").getData().data() 
         self.time = tree.getNode(f"{path}.I_col").dim_of().data() * 1e3 # ms
 
-class EndRing:
+class EndRing(WhamDiagnostic):
 
     def __init__(self, shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
 
@@ -1039,12 +1068,10 @@ class EndRing:
         return fig,axs, ax0
 
 
-class Dalpha:
+class Dalpha(WhamDiagnostic):
 
     def __init__(self,shot):
-
-        self.shot = shot
-        self.load()
+        super().__init__(shot)
 
     def load(self):
         tree = mds.Tree("wham",self.shot)
@@ -1055,6 +1082,11 @@ class Dalpha:
         time = tree.getNode(f"{root}.los_01").dim_of().data() * 1e3 #ms
         radius = tree.getNode(f"{root}.impact_param").getData().data() / 10 # cm
 
+        # filter non-physical peaks from D-alpha
+        arg = np.argwhere( np.abs(data) > 1e20)
+        data.T[arg] = 0
+
+        # save
         self.data = data[:-2] # ignore last two channels for now
         self.radius = radius[:-2]
         self.time = time
