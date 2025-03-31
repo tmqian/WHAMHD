@@ -463,14 +463,21 @@ class Spectrometer(WhamDiagnostic):
         if detail_level == 'summary':
 
             summary = {}
-            
-            C = self.C
 
-            Ti0 = C.Ti[5] # los 1.43 cm
-            Vip = C.Vi[-2]/1e3 # los 12.7 cm
-            
-            summary['Ti at r=1.43 (eV)'] = float(Ti0)
-            summary['Vi at r=12.7 (km/s)'] = float(Vip)
+            try:
+                C = self.C
+
+                Ti0 = C.Ti[5] # los 1.43 cm
+                Vip = C.Vi[-2]/1e3 # los 12.7 cm
+                
+                summary['Ti at r=1.43 (eV)'] = float(Ti0)
+                summary['Vi at r=12.7 (km/s)'] = float(Vip)
+
+            except:
+                summary['Ti at r=1.43 (eV)'] = 0
+                summary['Vi at r=12.7 (km/s)'] = 0
+                result['is_loaded'] = False
+
             result['summary'] = summary
 
         return result

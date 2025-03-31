@@ -77,8 +77,8 @@ class WhamDiagnostic:
             
         return result
 
-# Helper Functions
 
+# Helper Functions
 def zero_offset(f,idx=2000):
     f -= np.mean(f[-idx:])
 
@@ -300,11 +300,15 @@ class BiasPPS(WhamDiagnostic):
         if detail_level == 'summary':
             summary = {}
 
-            # this will cause a bug later
-            Vlim = np.max(self.Ldem_V)
-            Vring = np.min(self.Rdem_V)
-            summary['limiter_bias'] = Vlim
-            summary['ring_bias'] = Vring
+            try:
+                Vlim = np.max(self.Ldem_V)
+                Vring = np.min(self.Rdem_V)
+                summary['limiter_bias'] = Vlim
+                summary['ring_bias'] = Vring
+            except:
+                summary['limiter_bias'] = 0
+                summary['ring_bias'] = 0
+                result['is_loaded'] = False
 
         result['summary'] = summary
         return result
@@ -359,20 +363,28 @@ class Interferometer(WhamDiagnostic):
         if detail_level == 'summary':
 
             summary = {}
-            
-            # smooth
-            T = self.time
-            nint = self.linedens
-            navg = nint/(2*0.136)
-            N = savgol(navg, 501,3)
-            jm = np.argmax(N)
-                           
-            t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
-            summary['max line avg dens (m^-3)'] = N[jm]
-            summary['max time (ms)'] = T[jm]
-            summary['dens 4.8ms (m^-3)'] = N[t1]
-            summary['dens 9.8ms (m^-3)'] = N[t2]
-            summary['dens 14.8ms (m^-3)'] = N[t3]
+
+            try:
+                # smooth
+                T = self.time
+                nint = self.linedens
+                navg = nint/(2*0.136)
+                N = savgol(navg, 501,3)
+                jm = np.argmax(N)
+                               
+                t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
+                summary['max line avg dens (m^-3)'] = N[jm]
+                summary['max time (ms)'] = T[jm]
+                summary['dens 4.8ms (m^-3)'] = N[t1]
+                summary['dens 9.8ms (m^-3)'] = N[t2]
+                summary['dens 14.8ms (m^-3)'] = N[t3]
+            except:
+                summary['max line avg dens (m^-3)'] = 1
+                summary['max time (ms)'] = 0
+                summary['dens 4.8ms (m^-3)'] = 1
+                summary['dens 9.8ms (m^-3)'] = 1
+                summary['dens 14.8ms (m^-3)'] = 1
+                result['is_loaded'] = False
 
             result['summary'] = summary
         return result
@@ -509,26 +521,41 @@ class FluxLoop(WhamDiagnostic):
         if detail_level == 'summary':
 
             summary = {}
-            
-            # smooth
-            T = self.time
-            F1 = savgol(self.FL1/1e3, 501,3)
-            F2 = savgol(self.FL2/1e3, 501,3)
-            jm = np.argmax(F1)
-                           
-            t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
-            summary['max flux (kMx)'] = F1[jm]
-            summary['max time (ms)'] = T[jm]
 
-            summary['flux 4.8ms (kMx)'] = F1[t1]
-            summary['flux 9.8ms (kMx)'] = F1[t2]
-            summary['flux 14.8ms (kMx)'] = F1[t3]
+            try:
+                # smooth
+                T = self.time
+                F1 = savgol(self.FL1/1e3, 501,3)
+                F2 = savgol(self.FL2/1e3, 501,3)
+                jm = np.argmax(F1)
+                               
+                t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
+                summary['max flux (kMx)'] = F1[jm]
+                summary['max time (ms)'] = T[jm]
 
-            summary['flux2 4.8ms (kMx)'] = F2[t1]
-            summary['flux2 9.8ms (kMx)'] = F2[t2]
-            summary['flux2 14.8ms (kMx)'] = F2[t3]
+                summary['flux 4.8ms (kMx)'] = F1[t1]
+                summary['flux 9.8ms (kMx)'] = F1[t2]
+                summary['flux 14.8ms (kMx)'] = F1[t3]
+
+                summary['flux2 4.8ms (kMx)'] = F2[t1]
+                summary['flux2 9.8ms (kMx)'] = F2[t2]
+                summary['flux2 14.8ms (kMx)'] = F2[t3]
+
+            except:
+                summary['max flux (kMx)'] = 0
+                summary['max time (ms)'] = 0
+
+                summary['flux 4.8ms (kMx)'] = 0
+                summary['flux 9.8ms (kMx)'] = 0
+                summary['flux 14.8ms (kMx)'] = 0
+
+                summary['flux2 4.8ms (kMx)'] = 0
+                summary['flux2 9.8ms (kMx)'] = 0
+                summary['flux2 14.8ms (kMx)'] = 0
+
+                result['is_loaded'] = False
+
             result['summary'] = summary
-
         return result
 
 class AXUV(WhamDiagnostic):
@@ -648,21 +675,24 @@ class ECH(WhamDiagnostic):
         if detail_level == 'summary':
 
             summary = {}
-            
-            T = self.time
-            P = self.Fwg_filt
-            t1,t2 = get_time_array(T, [2.5,4.5])
-            Pech = np.mean(P[t1:t2])
-                           
-            summary['P ECH (kW)'] = Pech
-            # todo: get pulse duration
+
+            try: 
+                T = self.time
+                P = self.Fwg_filt
+                t1,t2 = get_time_array(T, [2.5,4.5])
+                Pech = np.mean(P[t1:t2])
+                               
+                summary['P ECH (kW)'] = Pech
+                # todo: get pulse duration
+
+                if Pech < 10:
+                    # correct for blank data
+                    retult['is_loaded'] = False
+            except:
+                summary['P ECH (kW)'] = 0
+                result['is_loaded'] = False
 
             result['summary'] = summary
-
-            if Pech < 10:
-                # correct for blank data
-                retult['is_loaded'] = False
-
         return result
 
 
@@ -705,19 +735,24 @@ class EdgeProbes(WhamDiagnostic):
 
             summary = {}
             
-            T = self.time
-            V = self.ProbeArr[6]
+            try:
+                T = self.time
+                V = self.ProbeArr[6]
 
-            t1,t2 = get_time_array(T, [2,9])
-            Vf = np.mean(V[t1:t2])
-                           
-            summary['V float (V)'] = Vf
+                t1,t2 = get_time_array(T, [2,9])
+                Vf = np.mean(V[t1:t2])
+                               
+                summary['V float (V)'] = Vf
 
-            if np.abs(Vf) < 1:
-                # correct for blank data
+                if np.abs(Vf) < 1:
+                    # correct for blank data
+                    result['is_loaded'] = False
+
+            except:
+                summary['V float (V)'] = 0
                 result['is_loaded'] = False
-            result['summary'] = summary
 
+            result['summary'] = summary
         return result
 
 class NBI(WhamDiagnostic):
@@ -756,27 +791,34 @@ class NBI(WhamDiagnostic):
         if detail_level == 'summary':
 
             summary = {}
-            
-            T = self.time
-            I = self.I_Beam
-            V = self.V_Beam
-            P = I*V
+           
+            try:
+                T = self.time
+                I = self.I_Beam
+                V = self.V_Beam
+                P = I*V
 
-            t1,t2 = get_time_array(T, [4,12])
-            Pnbi = np.mean(P[t1:t2])
-            Vnbi = np.mean(V[t1:t2])
-            Inbi = np.mean(I[t1:t2])
-                           
-            summary['P NBI (kW)'] = Pnbi
-            summary['V NBI (kW)'] = Vnbi
-            summary['I NBI (kW)'] = Inbi
-            # todo: get pulse duration
+                t1,t2 = get_time_array(T, [4,12])
+                Pnbi = np.mean(P[t1:t2])
+                Vnbi = np.mean(V[t1:t2])
+                Inbi = np.mean(I[t1:t2])
+                               
+                summary['P NBI (kW)'] = Pnbi
+                summary['V NBI (kW)'] = Vnbi
+                summary['I NBI (kW)'] = Inbi
+                # todo: get pulse duration
 
-            if Pnbi < 50:
-                # correct for blank data
-                retult['is_loaded'] = False
+                if Pnbi < 50:
+                    # correct for blank data
+                    retult['is_loaded'] = False
+
+            except:
+                summary['P NBI (kW)'] = 0
+                summary['V NBI (kW)'] = 0
+                summary['I NBI (kW)'] = 0
+
+                result['is_loaded'] = False
             result['summary'] = summary
-
         return result
 
 class Radiation(WhamDiagnostic):
@@ -1086,16 +1128,22 @@ class Gas(WhamDiagnostic):
         if detail_level == 'summary':
 
             summary = {}
-            
-            # smooth
-            T = self.t_asdex
-            G = savgol(self.asdex_hi, 501,3)
-            jm = np.argmax(G)
-                           
-            summary['max Gas (torr)'] = G[jm]
-            summary['max time (ms)'] = T[jm]
-            result['summary'] = summary
 
+            try:
+                # smooth
+                T = self.t_asdex
+                G = savgol(self.asdex_hi, 501,3)
+                jm = np.argmax(G)
+                               
+                summary['max Gas (torr)'] = G[jm]
+                summary['max time (ms)'] = T[jm]
+
+            except:
+                summary['max Gas (torr)'] = 0
+                summary['max time (ms)'] = 0
+                result['is_loaded'] = False
+
+            result['summary'] = summary
         return result
 
 class ShineThrough(WhamDiagnostic):
@@ -1139,19 +1187,26 @@ class ShineThrough(WhamDiagnostic):
         if detail_level == 'summary':
 
             summary = {}
-            
-            # smooth
-            T = self.time
-            N = self.nt
-            jm = np.argmax(N)
-                           
-            t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
-            summary['max shinethrough dens (m^-3)'] = N[jm]
-            summary['max time (ms)'] = T[jm]
-            summary['dens 4.8ms (m^-3)'] = N[t1]
-            summary['dens 9.8ms (m^-3)'] = N[t2]
-            summary['dens 14.8ms (m^-3)'] = N[t3]
+            try:
+                # smooth
+                T = self.time
+                N = self.nt
+                jm = np.argmax(N)
+                               
+                t1,t2,t3 = get_time_array(T, [4.8, 9.8, 14.8])
+                summary['max shinethrough dens (m^-3)'] = N[jm]
+                summary['max time (ms)'] = T[jm]
+                summary['dens 4.8ms (m^-3)'] = N[t1]
+                summary['dens 9.8ms (m^-3)'] = N[t2]
+                summary['dens 14.8ms (m^-3)'] = N[t3]
+            except:
+                summary['max shinethrough dens (m^-3)'] = 1
+                summary['max time (ms)'] = 0
+                summary['dens 4.8ms (m^-3)'] = 1
+                summary['dens 9.8ms (m^-3)'] = 1
+                summary['dens 14.8ms (m^-3)'] = 1
 
+                result['is_loaded'] = False
             result['summary'] = summary
         return result
 
@@ -1345,14 +1400,18 @@ class Bdot(WhamDiagnostic):
         if detail_level == 'summary':
 
             summary = {}
-            
-            T = self.time
-            t1,t2 = get_time_array(T, [2,9])
-            dB = np.mean(self.Br[t1:t2])
-                           
-            if np.abs(dB) < 1:
-                # correct for blank data
-                retult['is_loaded'] = False
+
+            try:
+                
+                T = self.time
+                t1,t2 = get_time_array(T, [2,9])
+                dB = np.mean(self.Br[t1:t2])
+                               
+                if np.abs(dB) < 1:
+                    # correct for blank data
+                    retult['is_loaded'] = False
+            except:
+                result['is_loaded'] = False
             result['summary'] = summary
 
         return result
