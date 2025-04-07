@@ -93,12 +93,15 @@ for k,t in enumerate(tax):
         axs[1,1].plot(radius, predicted_profile, color=cmap[k]) 
 
     if bias_data:
-        rax = bias.radii * (13./22) # approximate map
-        t1,t2 = get_time_index(bias.time, t,t)
-        v1 = bias.ProbeArr[:,t1]
-        cat = np.concatenate
-        axs[3,1].plot(cat([-rax[::-1],rax]), cat([v1[::-1],v1]), 'o-', color=cmap[k])
-        # endring [10,27000] R,T
+        try:
+            rax = bias.radii * (13./22) # approximate map
+            t1,t2 = get_time_index(bias.time, t,t)
+            v1 = bias.ProbeArr[:,t1]
+            cat = np.concatenate
+            axs[3,1].plot(cat([-rax[::-1],rax]), cat([v1[::-1],v1]), 'o-', color=cmap[k])
+            # endring [10,27000] R,T
+        except:
+            pass
 
     if dalpha_data:
         t1,t2 = get_time_index(da.time, t,t)
