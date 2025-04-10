@@ -2,6 +2,7 @@ import MDSplus as mds
 
 import numpy as np
 from scipy.signal import savgol_filter as savgol
+from scipy.interpolate import interp1d
 from scipy.fft import fft, fftfreq
 
 import matplotlib.pyplot as plt
@@ -588,7 +589,7 @@ class AXUV(WhamDiagnostic):
             R.append(tree.getNode(f'{root}.R').getData().data())
             Phi.append( tree.getNode(f'{root}.PHI').getData().data() )
             Z.append( tree.getNode(f'{root}.Z').getData().data() )
-            b.append( tree.getNode(f'{root}.B_IMPACT').getData().data())
+            b.append( tree.getNode(f'{root}.B_IMPACT').getData().data()) # 4/24 uncalibrated!
             Ohm.append( tree.getNode(f'{root}.RESISTOR').getData().data())
 
         time = tree.getNode(f'{root}.{I_tag}').dim_of().data() * 1e3
@@ -763,23 +764,45 @@ class NBI(WhamDiagnostic):
     def load(self):
 
         tree = self.tree
-        self.d_arr = np.array([tree.getNode(f"diag.shinethru.detector_{j+1:02d}").getData().data() for j in range(15)]) * 1e3
-        d2 = tree.getNode("diag.shinethru.detector_02").getData().data() 
-        d5 = tree.getNode("diag.shinethru.detector_05").getData().data() 
-        d10 = tree.getNode("diag.shinethru.detector_10").getData().data() 
-        time = tree.getNode("diag.shinethru.time").getData().data() * 1e3
-        
         I_Beam = tree.getNode("nbi.i_beam").getData().data() 
-        V_Beam = tree.getNode("nbi.v_beam").getData().data() / 1e3
-        
-        t_nbi = tree.getNode("nbi.time_slow").getData().data() * 1e3
+        V_Beam = tree.getNode("nbi.v_beam").getData().data() 
+        #t_nbi = tree.getNode("nbi.time_slow").getData().data() * 1e3
+
+        path = "diag.shinethru"
+        time = tree.getNode(f"{path}.time").getData().data() * 1e3
+        d_arr = np.array([tree.getNode(f"{path}.detector_{j+1:02d}").getData().data() for j in range(15)]) * 1e3 
+
+        # deprecated
+        d2 = tree.getNode(f"{path}.detector_02").getData().data() 
+        d5 = tree.getNode(f"{path}.detector_05").getData().data() 
+        d10 = tree.getNode(f"{path}.detector_10").getData().data() 
+
+        self.d_arr = np.delete(d_arr, 5, axis=0) 
+        self.chord_radius = tree.getNode(f"{path}.linedens.detector_pos").getData().data() * 100 # cm
 
         self.d2 = d2
         self.d5 = d5
         self.d10 = d10
+
         self.I_Beam = I_Beam
-        self.V_Beam = V_Beam
+        self.V_Beam = V_Beam / 1e3 # kV
         self.time = time
+
+        sigma = np.array([7.26340730e-20, 7.84768477e-20, 8.17242678e-20, 8.34743856e-20,
+               8.43384074e-20, 8.46619446e-20, 8.46459360e-20, 8.44106362e-20,
+               8.40299240e-20, 8.35502042e-20, 8.30011444e-20, 8.24019614e-20,
+               8.17652078e-20, 8.10991118e-20, 8.04090578e-20, 7.96985439e-20,
+               7.89698111e-20, 7.82242661e-20, 7.74627674e-20, 7.66858229e-20,
+               7.58937268e-20, 7.50866554e-20, 7.42647349e-20, 7.34280885e-20,
+               7.25768691e-20, 7.17112824e-20, 7.08316012e-20, 6.99381747e-20,
+               6.90314337e-20, 6.81118917e-20, 6.71801442e-20, 6.62368657e-20])
+        E = np.array([ 4000.,  5000.,  6000.,  7000.,  8000.,  9000., 10000., 11000.,
+               12000., 13000., 14000., 15000., 16000., 17000., 18000., 19000.,
+               20000., 21000., 22000., 23000., 24000., 25000., 26000., 27000.,
+               28000., 29000., 30000., 31000., 32000., 33000., 34000., 35000.])
+        xsec = interp1d(E,sigma, fill_value=0, kind='cubic', bounds_error=False)
+
+        self.sigma_cx = xsec(V_Beam)
 
     def to_dict(self, detail_level='summary'):
 
@@ -1154,14 +1177,17 @@ class ShineThrough(WhamDiagnostic):
     def load(self):
 
         tree = self.tree
-        path = "diag.shinethru.linedens"
+        path = "diag.shinethru"
 
-        self.nt = tree.getNode(f"{path}.central_dens").getData().data()
-        self.nr = tree.getNode(f"{path}.density_prof").getData().data().T # [time, radius]
-        self.time = tree.getNode(f"{path}.central_dens").dim_of().data() * 1e3 # ms
-        self.radius = tree.getNode(f"{path}.density_prof").dim_of(0).data() * 100 # cm
-        
-        self.chord_radius = tree.getNode(f"{path}.detector_pos").getData().data() * 100 # cm
+        self.nt = tree.getNode(f"{path}.linedens.central_dens").getData().data()
+        self.nr = tree.getNode(f"{path}.linedens.density_prof").getData().data().T # [time, radius]
+        self.time = tree.getNode(f"{path}.linedens.central_dens").dim_of().data() * 1e3 # ms
+        self.radius = tree.getNode(f"{path}.linedens.density_prof").dim_of(0).data() * 100 # cm
+
+        ch = np.array([i for i in range(15) if i != 5]) # ch 5 is bad
+        self.chords = np.array([tree.getNode(f"diag.shinethru.detector_{j+1:02d}").getData().data() for j in ch]) * 1e3
+        self.chord_radius = tree.getNode(f"{path}.linedens.detector_pos").getData().data() * 100 # cm
+        self.chord_time = tree.getNode(f"{path}.detector_01").dim_of().data() * 1e3 # ms
 
     def plot(self, t_array=[6]):
 
