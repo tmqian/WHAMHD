@@ -766,6 +766,7 @@ class NBI(WhamDiagnostic):
         tree = self.tree
         I_Beam = tree.getNode("nbi.i_beam").getData().data() 
         V_Beam = tree.getNode("nbi.v_beam").getData().data() 
+        P_Beam = V_Beam * I_Beam / 1e3 # kW
         #t_nbi = tree.getNode("nbi.time_slow").getData().data() * 1e3
 
         path = "diag.shinethru"
@@ -786,6 +787,7 @@ class NBI(WhamDiagnostic):
 
         self.I_Beam = I_Beam
         self.V_Beam = V_Beam / 1e3 # kV
+        self.P_Beam = P_Beam # kV
         self.time = time
 
         sigma = np.array([7.26340730e-20, 7.84768477e-20, 8.17242678e-20, 8.34743856e-20,
@@ -803,6 +805,16 @@ class NBI(WhamDiagnostic):
         xsec = interp1d(E,sigma, fill_value=0, kind='cubic', bounds_error=False)
 
         self.sigma_cx = xsec(V_Beam)
+
+        exceeds = [i for i, val in enumerate(P_Beam) if val > 5]
+
+        if not exceeds:
+            self.t_start = None
+            self.t_stop = None
+
+        # get beam start and stop time
+        self.t_start = time[exceeds[0]]
+        self.t_stop = time[exceeds[-1]]
 
     def to_dict(self, detail_level='summary'):
 
