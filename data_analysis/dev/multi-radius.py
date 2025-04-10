@@ -48,13 +48,14 @@ except:
 
 
 fig,axs = plt.subplots(4,3,figsize=(12,8), sharex=True)
+dt = 0.1 # window for averaging fluctuations
 for k,t in enumerate(tax):
 
     if axuv_data:
-        t1,t2 = get_time_index(axuv.time, t,t)
+        t1,t2 = get_time_index(axuv.time, t-dt/2,t+dt/2)
 
         r_axuv = axuv.b*100
-        f_axuv = axuv.data[:,t1]
+        f_axuv = np.mean(axuv.data[:,t1:t2],axis=1)
         axs[0,0].plot(r_axuv, f_axuv, 'o', label=f"t = {t:.1f} ms", color=cmap[k])
         # axuv.data [20,25000] R,T
         opt = scipy_min(r_axuv, f_axuv, m1, 
