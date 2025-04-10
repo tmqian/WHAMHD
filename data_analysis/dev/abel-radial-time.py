@@ -12,31 +12,33 @@ from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy import integrate
 import abel 
 
+shot = 250220102
+shot_ref = 250220099
+
+shot = 250320104
+shot_ref = 250320089
+
 shot = 250324094
-shot_ref = 250324082
-
-#shot = 250220102
-#shot_ref = 250220099
-
-# Constants and parameters
-PLASMA_EDGE = 20   # Edge of plasma in cm
-PLASMA_EDGE = 24   # Edge of plasma in cm
-R_VESSEL = 36      # Vessel radius
-XMESH = 101        # Number of mesh points
-CHI_FREQ = [20]    # Frequency in kHz
-RECON_CENTER = 0   # Center reconstruction mode (0: fixed, 1: peak, 2: center of mass)
-
-# Generate radial coordinates
-dnumhr = np.linspace(-R_VESSEL, R_VESSEL, XMESH)
+shot_ref = 250324080
 
 class ChordData:
     """Store and plot chord data with consistent coloring"""
     
-    def __init__(self, chord_RT, radius, time):
+    def __init__(self, chord_RT, radius, time,
+                  PLASMA_EDGE = 24,   # Edge of plasma in cm
+                  R_VESSEL = 36,      # Vessel radius
+                  XMESH = 101,        # Number of mesh points
+                  RECON_CENTER = 0,   # Center reconstruction mode (0: fixed, 1: peak, 2: center of mass)
+                 ):
         self.chord_RT = chord_RT  # RT: Radius-Time data
         self.time = time
         self.radius = radius
         
+        # Generate radial coordinates
+        self.chords_highres = np.linspace(-R_VESSEL, R_VESSEL, XMESH)
+        self.n_highres = XMESH
+        self.plasma_edge = PLASMA_EDGE
+
         # Create color maps for plots
         M = len(chord_RT)
         self.c_turbo = plt.cm.turbo(np.linspace(0, 0.8, M))
@@ -65,7 +67,7 @@ class ChordData:
         """Plot radial profile at different time windows around time t"""
         tax = [0, 0.005, 0.02, 0.05, 0.1, 0.2, 0.5]  # Windows for averaging (seconds)
         
-        r = dnumhr[XMESH//2:]
+        r = self.chords_highres[self.n_highres//2:]
         for k, dt in enumerate(tax):
             # Find time indices for the window
             t1,t2 = get_time_index(self.time, t-dt/2, t+dt/2)
@@ -85,12 +87,14 @@ class ChordData:
 
     def plot_forward_model(self, ax,t=3):
 
-        r = dnumhr[XMESH//2:]
+        chords = self.chords_highres
+
+        r = chords[self.n_highres//2:]
         dt = 0.2
         t1,t2 = get_time_index(self.time, t-dt/2, t+dt/2)
         fr = np.mean(self.radial_profile[t1:t2], axis=0)
-        out = forward_model(r, fr, dnumhr)
-        ax.plot(dnumhr, out*np.sqrt(2), ls='--', color='k', label='fit')
+        out = forward_model(r, fr, chords)
+        ax.plot(chords, out, ls='--', color='k', label='fit')
 
     def extend_edge_data(self, plasma_edge, drop=[]):
         """
@@ -275,27 +279,6 @@ class ChordData:
             symmetric_component[:, t] = gaussian_filter(symmetric, sigma=2)
             asymmetric_component[:, t] = gaussian_filter(asymmetric, sigma=2)
         
-        # Calculate oscillation metrics using rolling covariance
-        determinants = []
-        for freq in CHI_FREQ:
-            window_size = int(1000 / freq)  # Convert kHz to samples
-            if window_size >= len(time_coords):
-                window_size = len(time_coords) // 4  # Use a reasonable default
-            
-            df = pd.DataFrame({
-                'CM': mean_position_hr,
-                'R': rms_radius_hr/2
-            })
-            
-            if len(df) > window_size:
-                rolling_cov = df.rolling(window=window_size).cov()
-                determinants = []
-                
-                for i in range(window_size - 1, len(df)):
-                    cov_matrix = rolling_cov.loc[i].values.reshape(len(df.columns), -1)
-                    det = np.abs(np.linalg.det(cov_matrix))
-                    determinants.append(np.sqrt(det))
-        
         # Perform Abel inversion for radial profile
         # Make sure we have valid data for Abel inversion
         try:
@@ -305,7 +288,8 @@ class ChordData:
             print(f"Abel inversion failed: {e}")
             radial_profile = np.zeros((signal.shape[1], mid_point))
 
-        self.radial_profile = radial_profile
+        radial_profile = radial_profile * np.sqrt(2) # why?
+        self.radial_profile = radial_profile 
         return {
             'centroid': mean_position,
             'radius': rms_radius,
@@ -316,6 +300,147 @@ class ChordData:
             'asymmetric': asymmetric_component,
             'radial_profile': radial_profile
         }
+
+    def extend_edge_data_2(self, plasma_edge, mode="l", drop=[]):
+        '''
+        Extends plasma profile data beyond measurement range
+        
+        Parameters:
+        plasma_edge: scalar - edge of plasma
+        mode: string - mode of filling
+        
+        Returns:
+        x_padded, y_padded: extended coordinate and signal arrays
+        '''
+
+        x = self.radius.copy()
+        y = self.chord_RT.copy()
+
+        # Ensure x is in descending order for consistent processing
+        flip = 0
+        if x[1] > x[0]:
+            x = x[::-1]
+            y = y[::-1]
+            flip = 1
+    
+        if drop != []:
+            x = np.delete(x,drop)
+            y = np.delete(y,drop,axis=0)
+
+        # Define plasma edge boundaries
+        plasma_edge_p = plasma_edge
+        plasma_edge_n = -plasma_edge
+        
+        # Adjust edges if needed
+        if x[0] >= plasma_edge:
+            plasma_edge_p = x[0] + 0.01  # 1cm
+        if x[-1] <= -plasma_edge:
+            plasma_edge_n = x[-1] - 0.01  # 1cm
+        
+        # Create intermediate points for padding
+        left_x_mid = np.mean([plasma_edge_p, x[0]])
+        right_x_mid = np.mean([plasma_edge_n, x[-1]])
+        left_x_mid12 = np.linspace(plasma_edge_p, x[0], 4)[1:3]
+        right_x_mid12 = np.linspace(plasma_edge_n, x[-1], 4)[1:3]
+        left_xinter = plasma_edge_p
+        right_xinter = plasma_edge_n
+    
+        # Calculate slopes using mean of adjacent edge elements
+        leftslope = ((y[0] + y[1]) / 2 - (y[1] + y[2]) / 2) / \
+                    ((x[0] + x[1]) / 2 - (x[1] + x[2]) / 2)
+        
+        rightslope = ((y[-1] + y[-2]) / 2 - (y[-2] + y[-3]) / 2) / \
+                     ((x[-1] + x[-2]) / 2 - (x[-2] + x[-3]) / 2)
+    
+        # Gaussian falloff function for edge treatment
+        def gaussian_falloff(x0, y0, m, plasma_edge, sigma_nm):
+            sigma = np.abs(x0 - plasma_edge) / sigma_nm
+            G_mu = x0 + (m / (y0 + 1e-20)) * sigma**2
+            G_A = y0 * np.exp(m**2 * sigma**2 / (2 * y0**2 + 1e-20))
+            return G_mu, G_A, sigma
+        
+        # Determine which points use Gaussian falloff
+        total_signal = np.sum(y, 0)
+        max_signal = np.max(y, 0)
+        signal_threshold = 0.050
+        min_total_signal = 0.02
+        
+        use_gaussian_right = (y[-1] / (max_signal + 1e-20) >= signal_threshold) & (total_signal > min_total_signal)
+        use_gaussian_left = (y[0] / (max_signal + 1e-20) >= signal_threshold) & (total_signal > min_total_signal)
+    
+        # Calculate Gaussian parameters
+        left_mu, left_A, left_sigma = gaussian_falloff(
+            x[0], y[0, use_gaussian_left],
+            leftslope[use_gaussian_left], plasma_edge=plasma_edge_p, sigma_nm=2
+        )
+        
+        right_mu, right_A, right_sigma = gaussian_falloff(
+            x[-1], y[-1, use_gaussian_right],
+            rightslope[use_gaussian_right], plasma_edge=plasma_edge_n, sigma_nm=2
+        )
+    
+        # Enforce slope direction
+        leftslope[leftslope >= 0] = -leftslope[leftslope >= 0]
+        rightslope[rightslope <= 0] = -rightslope[rightslope <= 0]
+        
+        # Calculate y-intercepts
+        left_c = y[0] - leftslope * x[0]
+        right_c = y[-1] - rightslope * x[-1]
+        
+        # Calculate y values for padding points using linear extrapolation
+        left_y_mid = left_x_mid * leftslope + left_c
+        right_y_mid = right_x_mid * rightslope + right_c
+        left_y_mid12 = left_x_mid12.reshape(left_x_mid12.shape[0], 1) * leftslope + left_c
+        right_y_mid12 = right_x_mid12.reshape(right_x_mid12.shape[0], 1) * rightslope + right_c
+        
+        # Ensure non-negative values
+        left_y_mid12[left_y_mid12 < 0] = 0
+        right_y_mid12[right_y_mid12 < 0] = 0
+        left_y_mid[left_y_mid < 0] = 0
+        right_y_mid[right_y_mid < 0] = 0
+        
+        # Apply Gaussian falloff where appropriate
+        right_y_mid[use_gaussian_right] = right_A * np.exp(-((right_x_mid - right_mu)**2) / (2 * right_sigma**2))
+        left_y_mid[use_gaussian_left] = left_A * np.exp(-((left_x_mid - left_mu)**2) / (2 * left_sigma**2))
+        
+        left_y_mid12[0, use_gaussian_left] = left_A * np.exp(-((left_x_mid12[0] - left_mu)**2) / (2 * left_sigma**2))
+        right_y_mid12[0, use_gaussian_right] = right_A * np.exp(-((right_x_mid12[0] - right_mu)**2) / (2 * right_sigma**2))
+        left_y_mid12[1, use_gaussian_left] = left_A * np.exp(-((left_x_mid12[1] - left_mu)**2) / (2 * left_sigma**2))
+        right_y_mid12[1, use_gaussian_right] = right_A * np.exp(-((right_x_mid12[1] - right_mu)**2) / (2 * right_sigma**2))
+        
+        # Construct padded y array
+        y_padded = np.concatenate([
+            np.zeros((1, y.shape[1])),  # Top padding
+            left_y_mid12,                         # Left padding
+            y,                           # Original data
+            right_y_mid12[::-1],                  # Right padding
+            np.zeros((1, y.shape[1]))    # Bottom padding
+        ], axis=0)
+        
+        # Adjust for minimum value
+        y_padded = y_padded - np.max((y_padded[0, :], y_padded[-1, :]), 0)
+        
+        # Repeat x coordinates across all time points
+        x_repeated = np.tile(x, (y.shape[1], 1)).T
+        
+        # Construct padded x array
+        x_padded = np.concatenate([
+            left_xinter + np.zeros((1, y.shape[1])),  # Top padding
+            np.tile(left_x_mid12.reshape(2, 1), (1, y.shape[1])),  # Left padding
+            x_repeated,  # Original data repeated
+            np.tile(right_x_mid12[::-1].reshape(2, 1), (1, y.shape[1])),  # Right padding
+            right_xinter + np.zeros((1, y.shape[1]))  # Bottom padding
+        ], axis=0)
+        
+        # Restore original order if necessary
+        if flip == 1:
+            x_padded = x_padded[::-1]
+            y_padded = y_padded[::-1]
+            
+        self.radius_padded = x_padded
+        self.chord_padded = y_padded
+        return x_padded, y_padded
+
 
 # Function to perform forward modeling (inverse of Abel inversion)
 def forward_model(r, emission_profile, chords):
@@ -362,26 +487,38 @@ t=2.25
 tax = [0, 0.005, 0.02, 0.05, 0.1, 0.2, 0.5] # window for averaging fluctuations
 
 da = Dalpha(shot)
-shine = ShineThrough(shot)
-shine_ref = ShineThrough(shot_ref)
-axuv = AXUV(shot)
-
-ref = np.roll(shine_ref.chords,1000, axis=1) # shift forward 1 ms, for shot 250324094
-#ref = shine_ref.chords
-
 chord_da = ChordData(da.data, da.radius, da.time)
-chord_shine = ChordData(ref - shine.chords, shine.chord_radius, shine.chord_time)
-#chord_shine = ChordData(shine.chords, shine.chord_radius, shine.chord_time)
-chord_axuv= ChordData(axuv.data, axuv.b*100, axuv.time)
 
+axuv = AXUV(shot)
+chord_axuv= ChordData(axuv.data, axuv.b*100, axuv.time, PLASMA_EDGE=15)
+
+nbi = NBI(shot) # it seems for some NBI-only shots shineThrough is not populated
+ref = NBI(shot_ref)
+
+# get cross section
+dt = 0.2
+t1,t2 = get_time_index(nbi.time, t-dt/2, t+dt/2)
+sig = np.mean(nbi.sigma_cx[t1:t2])
+#sig = 8e-20
+
+# calculate line density 
+chord_nbi = np.log(ref.d_arr/nbi.d_arr)/sig
+
+# mask time when there is no beam
+t0,t1 = get_time_index(nbi.time, nbi.t_start, nbi.t_stop)
+chord_nbi[:,:t0] = 0
+chord_nbi[:,t1:] = 0
+
+chord_shine = ChordData(chord_nbi, nbi.chord_radius, nbi.time, PLASMA_EDGE=15)
 
 fig,axs = plt.subplots(3,3,figsize=(14, 8), sharex='col')
 
-time_axis = [3.5]
-save = False
 save = True
+save = False
 #time_axis = np.linspace(0,20,201)
+time_axis = np.linspace(0,12,121)
 time_axis = np.linspace(0,8,81)
+time_axis = [4.25]
 for t in time_axis:
 
     chords = [chord_axuv, chord_shine]
@@ -391,14 +528,21 @@ for t in time_axis:
         chord.plot_radial_profile(axs[i, 1], t)
        
         # extend data at edge
-        if i==1:
-            chord.extend_edge_data(PLASMA_EDGE,drop=[10,12,13])
-            #chord.extend_edge_data(PLASMA_EDGE,drop=[10,13])
+        edge = chord.plasma_edge
+        if i==0:
+            # AXUV
+            chord.extend_edge_data_2(edge)
+        elif i==1:
+            # NBI
+            #chord.extend_edge_data(edge)
+            chord.extend_edge_data_2(edge)
+            chord.extend_edge_data_2(edge, drop=[11,12,13]) # for 0324094
         elif i==2:
-            chord.extend_edge_data(PLASMA_EDGE,drop=[0])
+            # H-alpha
+            chord.extend_edge_data(edge,drop=[0])
         else:
-            chord.extend_edge_data(PLASMA_EDGE)
-        results = chord.analyze_plasma(dnumhr)
+            chord.extend_edge_data(edge)
+        results = chord.analyze_plasma(chord.chords_highres)
 
         try:
             chord.plot_abel_profile(axs[i, 2], t)
@@ -415,7 +559,8 @@ for t in time_axis:
     axs[0,0].set_ylabel("axuv")
     axs[1,0].set_ylabel("nbi shinethrough")
     axs[2,0].set_ylabel("H-alpha")
-    axs[0,0].set_ylim(-0.5e-7,1.5e-7) # axuv, low impurity shot 
+#    axs[0,0].set_ylim(-0.5e-7,1.5e-7) # axuv, low impurity shot 
+    axs[1,0].set_ylim(-0.5e17, 4e18) # nbi, low density shot, 0324094
     
     axs[0,0].legend(loc=2,fontsize=9)
     axs[0,1].legend(loc=1, fontsize=8)
@@ -436,4 +581,4 @@ for t in time_axis:
             a.clear()
         print(t)
 
-#plt.show()
+plt.show()
