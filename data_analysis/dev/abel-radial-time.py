@@ -259,7 +259,8 @@ class ChordData:
         # Extract symmetric and asymmetric components
         symmetric_component = np.zeros_like(signal_hr)
         asymmetric_component = np.zeros_like(signal_hr)
-        
+        dr = (radial_coords[-1] - radial_coords[0])/(len(radial_coords)-1)
+       
         for t in range(signal_hr.shape[1]):
             # Center the signal
             indices = np.mod(np.arange(len(radial_coords)) - mid_point + int(center_shift[t]), len(radial_coords))
@@ -283,12 +284,11 @@ class ChordData:
         # Make sure we have valid data for Abel inversion
         try:
             projection = symmetric_component[mid_point:, :].T
-            radial_profile = abel.basex.basex_transform(projection, direction="inverse", verbose=False)
+            radial_profile = abel.basex.basex_transform(projection, direction="inverse", verbose=False, dr=dr)
         except Exception as e:
             print(f"Abel inversion failed: {e}")
             radial_profile = np.zeros((signal.shape[1], mid_point))
 
-        radial_profile = radial_profile * np.sqrt(2) # why?
         self.radial_profile = radial_profile 
         return {
             'centroid': mean_position,
