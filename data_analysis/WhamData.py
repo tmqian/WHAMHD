@@ -398,15 +398,16 @@ class FluxLoop(WhamDiagnostic):
     def load(self):
 
         tree = self.tree
+        path = "diag.fluxloops"
 
         # convert from Weber to Maxwell
-        FL1 = tree.getNode("diag.fluxloops.fl1").getData().data() * 1e8
-        FL2 = tree.getNode("diag.fluxloops.fl2").getData().data() * 1e8
-        FL3 = tree.getNode("diag.fluxloops.fl3").getData().data() * 1e8
+        FL1 = tree.getNode(f"{path}.fl1").getData().data() * 1e8
+        FL2 = tree.getNode(f"{path}.fl2").getData().data() * 1e8
+        FL3 = tree.getNode(f"{path}.fl3").getData().data() * 1e8
 
-        # the sign on flux loop 3 is questionable, so we integrate
-        #sign = np.sign( np.sum(FL3) )
-        #FL3 *= sign
+        Z1 = tree.getNode(f"{path}.z_fl1").getData().data() # m
+        Z2 = tree.getNode(f"{path}.z_fl2").getData().data()
+        Z3 = tree.getNode(f"{path}.z_fl3").getData().data()
 
         # shot 0801 on
         time = tree.getNode("diag.fluxloops.fl3").dim_of().data() * 1e3
@@ -420,6 +421,28 @@ class FluxLoop(WhamDiagnostic):
         self.FL2 = offset(FL2)
         self.FL3 = offset(FL3)
         self.time = time
+
+        self.z_axis= np.array([Z1, Z2, Z3]) * 100 # cm
+
+        psi_lim = tree.getNode("shot_params.psi_lim").getData().data()
+        self.psi_lim = psi_lim * 1e8 # Mx
+
+        B0_vs_z_node = tree.getNode("shot_params.b0_vs_z")
+        B = B0_vs_z_node.getData().data() # T
+        Z = B0_vs_z_node.dim_of().data() * 100 # cm
+        Bz = interp1d(Z,B, kind='cubic', bounds_error=False, fill_value=0)
+
+        self.B_func = Bz
+        self.B_flux = Bz(self.z_axis)
+
+        P1 = tree.getNode(f"{path}.p_perp1").getData().data()
+        P2 = tree.getNode(f"{path}.p_perp2").getData().data()
+        P3 = tree.getNode(f"{path}.p_perp3").getData().data()
+
+        self.P1 = P1
+        self.P2 = P2
+        self.P3 = P3
+
 
     def calcPressure(self, psi=2e6,
                            B1=0.275,
@@ -919,12 +942,26 @@ class Bolometer(WhamDiagnostic):
     def __init__(self, shot):
         super().__init__(shot)
 
-    def load(self):
+    def load(self, N=6,
+              foil_area = 3.9, # cm2
+              foil_mass = 0.36, # g
+              specific_heat = 0.385, # J/g/C
+             ):
 
         tree = self.tree
         node = "diag.cu_bolom"
         self.data = np.array([tree.getNode(f"{node}.ch_{j+1:02d}").getData().data()  for j in range(7)])
         self.time = tree.getNode(f"{node}.time").getData().data()
+        self.E_total = tree.getNode(f"{node}.total_en").getData().data()
+
+        # calculate flux
+
+        dT = np.array([np.max(data) - np.min(data) for data in self.data[1:N+1]])
+        dE = foil_mass*specific_heat*dT
+        Q = dE / foil_area *1e3 #mJ/cm2
+        self.Q = Q
+        self.z = np.array([-50, -30, -10, 10, 30, 50])
+
 
     def plot(self):
 
@@ -967,12 +1004,12 @@ class Bolometer(WhamDiagnostic):
         surface = np.pi*vessel_D*vessel_L #cm2
         E = Q*surface / 1e6 # kJ
 
-        rax = [-50, -30, -10, 10, 30, 50]
-        #rax = np.arange(N)+1
-        #axs.plot(rax,Q,'o-',label=self.shot)
-        axs.plot(rax,Q,'o-',label=f"{np.sum(E):.1f} kJ")
+        zax = [-50, -30, -10, 10, 30, 50]
+        axs.plot(zax,Q*10,'o-',label=f"{self.E_total/1e3:.2f} kJ")
+        #axs.plot(zax,Q,'o-',label=f"{np.sum(E):.1f} kJ")
+        #axs.set_ylabel("Fast Neutral Flux [mJ/cm2]")
+        axs.set_ylabel("Fast Neutral Flux [J/m2]")
         axs.set_xlabel("Z [cm]")
-        axs.set_ylabel("Fast Neutral Flux [mJ/cm2]")
 
         axs.grid()
         axs.set_title(self.shot)
