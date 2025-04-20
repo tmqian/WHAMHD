@@ -77,9 +77,8 @@ for k,t in enumerate(tax):
         # nbi [10,40000] R,T
         t1,t2 = get_time_index(nbi.time, t,t)
 
-        ch = np.array([i for i in range(15) if i != 5])
+        f_shine = nbi.d_arr[:,t1]
         r_shine = shine.chord_radius
-        f_shine = nbi.d_arr[ch,t1]
         axs[1,0].plot(r_shine, f_shine, 'o', color=cmap[k])  
 
         opt = scipy_min(r_shine, f_shine, m1, 
