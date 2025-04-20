@@ -12,6 +12,10 @@ from scipy.interpolate import RectBivariateSpline, interp1d
 from scipy import integrate
 import abel 
 
+'''
+Updated 4/20/2025
+'''
+
 shot = 250220102
 shot_ref = 250220099
 
@@ -63,7 +67,7 @@ class ChordData:
             ax.plot(self.radius, f, 'o-', label=f"dt = {1000*dt} us", 
                    color=self.c_plasma[k], lw=0.7)
 
-    def plot_abel_profile(self, ax, t=3):
+    def plot_abel_profile(self, ax, t=3, cm_to_m=False):
         """Plot radial profile at different time windows around time t"""
         tax = [0, 0.005, 0.02, 0.05, 0.1, 0.2, 0.5]  # Windows for averaging (seconds)
         
@@ -74,13 +78,16 @@ class ChordData:
             
             # Average over the time window
             f = np.mean(self.radial_profile[t1:t2], axis=0)
+            if cm_to_m:
+                f = f*100
             ax.plot(r, f, 'o-', color=self.c_plasma[k], lw=0.7)
 
             if k == 5:
                 # plot peaking factor
-                n = f/np.max(f)
-                a = np.argwhere(n<0.05)[0,0]
-                m = np.mean(n[:a])
+                n = f/np.max(f) # normalized profile
+                a = np.argwhere(n<0.05)[0,0] # argument at edge
+                #m = np.sum((n*r)[:a]) / np.sum(r[:a]) # area integrated mean
+                m = np.mean(n[:a]) # line integrated mean
                 edge = r[a]
                 ax.axhline(np.max(f)*m, color='k', ls='--', lw=1, label=f"Peaking Factor {1/m:.2f}")
                 ax.axvline(edge, color='k', ls='--', lw=1, label=f"edge {edge:.2f} cm")
@@ -288,7 +295,6 @@ class ChordData:
         except Exception as e:
             print(f"Abel inversion failed: {e}")
             radial_profile = np.zeros((signal.shape[1], mid_point))
-
         self.radial_profile = radial_profile 
         return {
             'centroid': mean_position,
@@ -483,7 +489,6 @@ def forward_model(r, emission_profile, chords):
     return chord_integrated
 
 
-t=2.25
 tax = [0, 0.005, 0.02, 0.05, 0.1, 0.2, 0.5] # window for averaging fluctuations
 
 da = Dalpha(shot)
@@ -495,17 +500,13 @@ chord_axuv= ChordData(axuv.data, axuv.b*100, axuv.time, PLASMA_EDGE=15)
 nbi = NBI(shot) # it seems for some NBI-only shots shineThrough is not populated
 ref = NBI(shot_ref)
 
-# get cross section
-dt = 0.2
-t1,t2 = get_time_index(nbi.time, t-dt/2, t+dt/2)
-sig = np.mean(nbi.sigma_cx[t1:t2])
-#sig = 8e-20
 
 # calculate line density 
-chord_nbi = np.log(ref.d_arr/nbi.d_arr)/sig
-
-# mask time when there is no beam
 t0,t1 = get_time_index(nbi.time, nbi.t_start, nbi.t_stop)
+# mask time when there is no beam
+nbi.sigma_cx[:t0] = 1
+nbi.sigma_cx[t1:] = 1
+chord_nbi = np.log(ref.d_arr/nbi.d_arr)/nbi.sigma_cx
 chord_nbi[:,:t0] = 0
 chord_nbi[:,t1:] = 0
 
@@ -545,7 +546,10 @@ for t in time_axis:
         results = chord.analyze_plasma(chord.chords_highres)
 
         try:
-            chord.plot_abel_profile(axs[i, 2], t)
+            if i==1:
+                chord.plot_abel_profile(axs[i, 2], t, cm_to_m=True)
+            else:
+                chord.plot_abel_profile(axs[i, 2], t)
             chord.plot_forward_model(axs[i, 1], t)
         except:
             print("abel failed")
