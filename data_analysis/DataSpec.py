@@ -452,6 +452,21 @@ class Spectrometer(WhamDiagnostic):
         C = self.C
         ax.errorbar(C.los, C.Vi/1e3, yerr=C.Vi_err/1e3, fmt='o-', label='self.shot')
 
+    def plot_Vi_single(self): # DE added, 25/04/03, on request for plot for Craig Jacobson. Can delete or move bothered by clutter. 
+
+        C = self.results.sel(line='CIII')
+
+        fig,ax = plt.subplots(1,1,figsize=(6.4,4.8))
+
+        ax.errorbar(C.los/10, C.Vi/1e3, yerr=C.Vi_err/1e3, fmt='o-', label='CIII')
+        tag = f"t_gate = {self.gate_width} ms, t_delay = {self.gate_delay} ms"
+        ax.set(xlabel='Impact Parameter [cm]',ylabel='Ion Velocity [km/s]',title=tag)
+        ax.grid()
+        ax.legend()
+        plt.suptitle(self.shot)
+        plt.tight_layout()
+        
+
 
     def to_dict(self, detail_level='summary'):
 
