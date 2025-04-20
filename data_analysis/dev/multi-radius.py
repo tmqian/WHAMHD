@@ -7,6 +7,9 @@ from DataSpec import Spectrometer
 from multi import get_time_index 
 from FitData import *
 
+'''
+Updated 20 April 2025
+'''
 
 shot = int(sys.argv[1])
 
