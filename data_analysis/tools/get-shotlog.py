@@ -4,6 +4,7 @@ import re
 import os
 import json
 import requests
+import sys
 
 '''
 Uses html to load and parse shotlogs for a given day
@@ -62,7 +63,7 @@ def get_shot_logs_for_date(date_ymd):
 try:
     day = sys.argv[1]
 except:
-    day = 250220102 # default
+    day = 250220 # default
 
 # load shot logs for the day
 date_str = str(day)
@@ -72,4 +73,6 @@ logs = get_shot_logs_for_date(date_str)
 outfile = f"shotlog-{day}.json"
 with open(outfile, "w") as f:
     json.dump(logs, f, indent=4)
+
+print(f"wrote {len(logs)} logs to {outfile}")
 
