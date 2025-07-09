@@ -6,7 +6,11 @@ import json
 import requests
 
 '''
-picking up work from June 13
+Uses html to load and parse shotlogs for a given day
+saves a json file.
+
+usage:
+python get-shotlog.py YYMMDD
 
 TQ 9 July 2025
 '''
@@ -53,15 +57,19 @@ def get_shot_logs_for_date(date_ymd):
     return logs
 
 
-# Main loop
-day = 240924
+### Main Function
+
+try:
+    day = sys.argv[1]
+except:
+    day = 250220102 # default
+
+# load shot logs for the day
 date_str = str(day)
-outfile = f"shotlog-{day}.json"
-           
 logs = get_shot_logs_for_date(date_str)
 
-
-# Convert list of tuples to a list of dicts or leave as-is
+# save as json file
+outfile = f"shotlog-{day}.json"
 with open(outfile, "w") as f:
     json.dump(logs, f, indent=4)
 
