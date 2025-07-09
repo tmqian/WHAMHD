@@ -1,6 +1,6 @@
 import os
 import pytest
-from . import flowmetry
+import flowmetry
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_DIR = os.path.join(THIS_DIR, 'test_files')

@@ -87,6 +87,16 @@ def Gauss(x, A, x0, sigma, offset):
 
 
 def two_gauss(x, A, x0, w, y0, alpha, dx0, dx1, w0, w1):
+    '''
+    A: total area under both gaussians
+    x0: central peak
+    w: physical broadening
+    y0: baseline offset
+    alpha: fraction of area in 2nd gaussian
+
+    dx0, dx1: calibration-based centroid shift
+    w0, w1: calibration-based instrument widths
+    '''
     return A * (
         Gauss(x, 1 - alpha, dx0 + x0, squaresum(w, w0), 0) + 
         Gauss(x, alpha, dx1 + x0, squaresum(w, w1), 0)
@@ -413,6 +423,7 @@ def plot_fit(fit, config):
     ax.set_ylabel('temperature (eV)')
 
     plt.tight_layout()
+    os.makedirs(config['save_dir'], exist_ok=True) # make output dir specified in config.ini if it doesn't exist
     plt.savefig(os.path.join(
         config['save_dir'], 
         filename.replace('.spe', '.png').split(os.sep)[-1]
