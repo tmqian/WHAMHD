@@ -1,38 +1,74 @@
 import json
+import h5py
 import MDSplus as mds
 
 from WhamData import *
 from DataSpec import Spectrometer
 
+def save_dict_to_h5(data, filename):
+    with h5py.File(filename, "w") as h5file:
+        def recurse(h5group, d):
+            for key, value in d.items():
+                if isinstance(value, dict):
+                    subgroup = h5group.create_group(key)
+                    recurse(subgroup, value)
+                elif isinstance(value, np.ndarray):
+                    h5group.create_dataset(key, data=value)
+                else:
+                    # Scalars or lists
+                    h5group[key] = value
+        recurse(h5file, data)
+
+
+def load_dict_from_h5(filename):
+    def recurse(h5obj):
+        result = {}
+        for key, item in h5obj.items():
+            if isinstance(item, h5py.Dataset):
+                result[key] = item[()]  # Convert to NumPy array or scalar
+            elif isinstance(item, h5py.Group):
+                result[key] = recurse(item)
+        return result
+
+    with h5py.File(filename, 'r') as f:
+        return recurse(f)
+
+
 class WHAM:
     """
     Super class that manages all WHAM diagnostics for a specific shot
     """
-    def __init__(self, shot):
+    def __init__(self, shot,
+                       # subset for loading
+                       load_list= ['bias', 'flux', 'interferometer', 
+                                   'gas', 'ech', 'edge_probes', 
+                                   'nbi', 'shine', 
+                                   'bdot', 'bolometer', 'dalpha', 
+                                   'oes'
+                                  ],
+                 ):
         self.shot = shot
         self.tree =  mds.Tree("wham",shot)
 
-        #self.radiation = Radiation(shot)
-        #self.gas = Gas(shot)
-        #self.ion_probe = IonProbe(shot)
-        #self.end_ring = EndRing(shot)
-
-        # Dictionary of diagnostic classes to instantiate
-        self.diagnostic_classes = {
+        # all implemented diagonstics
+        diagnostic_list = {
             'bias': BiasPPS,
             'flux': FluxLoop,
             'interferometer': Interferometer,
-            #'axuv': AXUV,
+            'axuv': AXUV,
             'gas': Gas,
             'ech': ECH,
             'edge_probes': EdgeProbes,
             'nbi': NBI,
             'shine' : ShineThrough,
             'bdot' : Bdot,
-            #'bolometer': Bolometer,
-            #'dalpha': Dalpha,
+            'bolometer': Bolometer,
+            'dalpha': Dalpha,
             'oes': Spectrometer
         }
+
+        # Dictionary of diagnostic classes to instantiate
+        self.diagnostic_classes = { key: diagnostic_list[key] for key in load_list }
         
         # Load each diagnostic
         for name, diag_class in self.diagnostic_classes.items():
@@ -72,41 +108,49 @@ class WHAM:
 
     def to_json(self, detail_level='status', indent=None):
         """
-        Convert the summary dictionary to a JSON string
+        This function actually returns a big python dict
+
+        always check status (is_loaded)
+        if detail_level is sumamry, do only summary
+        if detail_level is full, do summary and data
+        Parameters
+        ----------
+        detail_level : str
+            - 'status': always include is_loaded info
+            - 'summary': Also include summary
+            - 'full': include summary and full data
+    
+        Returns
+        -------
+        dict
         """
-        
-        if detail_level == 'status':
-            return {
-                "shot": self.shot,
-                "is_loaded": {
-                    name: getattr(self, name).is_loaded
-                    for name in self.diagnostic_classes.keys()
-                }
-            }
 
-        elif detail_level == 'summary':
-            data = self.to_dict()['diagnostics']
-            return {
-                "shot": self.shot,
-                "diagnostics": {
-                    name: {
-                        "is_loaded": data[name]['is_loaded'],
-                        "summary": data[name]['summary']
-                    }
-                    for name in self.diagnostic_classes.keys()
-                }
-            }
-
-        # Regular format for other detail levels
-        summary = {
+        result = {
             "shot": self.shot,
-            "diagnostics": {}
+            "is_loaded": {},
         }
     
-        # Add data from all diagnostics with the specified detail level
+        if detail_level in ('summary', 'full'):
+            result["summary"] = {}
+    
+        if detail_level == 'full':
+            result["full"] = {}
+    
         for name in self.diagnostic_classes.keys():
             diag = getattr(self, name)
-            summary["diagnostics"][name] = diag.to_dict(detail_level)
+            result["is_loaded"][name] = diag.is_loaded
     
-        return summary
+            if detail_level in ('summary', 'full'):
+                result["summary"][name] = diag.to_dict('summary')['summary']
+    
+            if detail_level == 'full':
+                result["full"][name] = diag.to_dict('data')['data']
+    
+        return result
+
+    def save_full_h5(self, filename):
+        # temp
+        data = self.to_json(detail_level='full')
+        save_dict_to_h5(data, filename)
+        print(f"saved {filename}")
 

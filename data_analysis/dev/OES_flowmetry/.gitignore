@@ -1,0 +1,30 @@
+# Python
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Logs and databases
+*.log
+*.sqlite3
+
+# vscode workspace
+*.code-workspace
+
+# output directory
+fits

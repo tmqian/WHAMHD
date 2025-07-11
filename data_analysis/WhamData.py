@@ -20,7 +20,7 @@ classes:
     EdgeProbes
     EndRings
 
-Updated 15 January 2025
+Updated 3 July 2025
 '''
 
 class WhamDiagnostic:
@@ -73,7 +73,7 @@ class WhamDiagnostic:
             return result
             
         # For higher detail levels, subclasses must implement
-        if detail_level in ['summary', 'full']:
+        if detail_level in ['summary', 'full', 'data']:
             raise NotImplementedError(f"Subclasses must implement to_dict() with {detail_level} detail level")
             
         return result
@@ -172,8 +172,12 @@ class BiasPPS(WhamDiagnostic):
 
         super().__init__(shot)
 
+    def load(self, 
+            shot_L_parallel_resistor = 250201000, # check this dates!
+            shot_R_parallel_resistor = 250319000,
+            shot_labview_demand = 250301000,
+             ):
 
-    def load(self):
 
         if self.no_dtacq:
             self.load_labview_demand()
@@ -198,21 +202,6 @@ class BiasPPS(WhamDiagnostic):
         time = tree.getNode(f"bias.PPS_L.demand.filtered").dim_of().data() * 1e3 # ms
 
 
-        # save
-        self.time = time
-        self.L_Dem  = L_Dem
-        self.L_ILem = L_ILem
-        self.L_VLem = L_VLem
-        self.L_Vpps = L_Vpps * self.VFBK_gain
-        self.L_VFB  = L_VFB * self.VFBK_gain
-        self.R_Dem  = R_Dem
-        self.R_ILem = R_ILem
-        self.R_VLem = R_VLem
-        self.R_Vpps = R_Vpps * self.VFBK_gain
-        self.R_VFB  = R_VFB * self.VFBK_gain
-
-        self.load_labview_demand()
-
         # load raw data
         raw = "raw.acq196_370"
         self.raw_L_Dem = tree.getNode (f"{raw}.ch_01").getData().data()
@@ -227,16 +216,48 @@ class BiasPPS(WhamDiagnostic):
         self.raw_R_VFB = tree.getNode (f"{raw}.ch_10").getData().data()
         self.trigger = tree.getNode (f"{raw}.ch_11").getData().data()
 
+
+        # save
+        self.time = time
+        self.L_Dem  = L_Dem
+        self.L_VLem = L_VLem
+        self.L_Vpps = L_Vpps * self.VFBK_gain
+        self.L_VFB  = L_VFB * self.VFBK_gain
+        self.R_Dem  = R_Dem
+        self.R_VLem = R_VLem
+        self.R_Vpps = R_Vpps * self.VFBK_gain
+        self.R_VFB  = R_VFB * self.VFBK_gain
+
+        # Subtract off Limiter shunt current
+        if self.shot > shot_L_parallel_resistor:
+            LI_raw = self.raw_L_ILem * self.ILEM_gain
+            self.L_ILem = LI_raw - L_VLem/1.23
+        else:
+            self.L_ILem = L_ILem
+
+        # Subtract Ring shunt current
+        if self.shot > shot_R_parallel_resistor:
+            RI_raw = -self.raw_R_ILem * self.ILEM_gain
+            self.R_ILem = RI_raw - self.R_VLem/1.57 
+        else:
+            self.R_ILem = R_ILem 
+
+        # load labview demand
+        if self.shot > shot_labview_demand:
+            self.load_labview_demand()
+
     def load_labview_demand(self):
 
         # load demand
-        if self.shot > 250301000:
+        try:
             tree = self.tree
             tbias = tree.getNode("bias.bias_params.trig_time").getData().data() # t0 for bias demand waveform
             self.Ldem_T = tree.getNode("bias.bias_params.dmd_waveform.pps_L_T").getData().data() + tbias*1e3
             self.Ldem_V = tree.getNode("bias.bias_params.dmd_waveform.pps_L_V").getData().data()
             self.Rdem_T = tree.getNode("bias.bias_params.dmd_waveform.pps_R_T").getData().data() + tbias*1e3
             self.Rdem_V = tree.getNode("bias.bias_params.dmd_waveform.pps_R_V").getData().data()
+        except:
+            print("labview demand not found", self.shot)
 
     def plot_raw(self):
         fig, axs = plt.subplots(2,1,figsize=(8,5), sharex=True)
@@ -298,11 +319,12 @@ class BiasPPS(WhamDiagnostic):
             "is_loaded": self.is_loaded,
         }
 
+        # Store single number metrics
         if detail_level == 'summary':
             summary = {}
 
             try:
-                Vlim = np.max(self.Ldem_V)
+                Vlim = np.max(self.Ldem_V) # this is bad, if Vlim<0 or Vring>0, it will give the wrong answer
                 Vring = np.min(self.Rdem_V)
                 summary['limiter_bias'] = Vlim
                 summary['ring_bias'] = Vring
@@ -311,7 +333,25 @@ class BiasPPS(WhamDiagnostic):
                 summary['ring_bias'] = 0
                 result['is_loaded'] = False
 
-        result['summary'] = summary
+            result['summary'] = summary
+
+        # Store data time series
+        if detail_level == 'data':
+
+            data = {}
+
+            try:
+                data['time']   = self.time
+                data['V_ring'] = self.R_VLem
+                data['V_lim']  = self.L_VLem
+                data['I_ring'] = self.R_ILem
+                data['I_lim']  = self.L_ILem
+            except:
+                print("Issue with bias data", self.shot)
+                result['is_loaded'] = False
+
+            result['data'] = data
+
         return result
 
 class Interferometer(WhamDiagnostic):
@@ -379,6 +419,8 @@ class Interferometer(WhamDiagnostic):
                 summary['dens 4.8ms (m^-3)'] = N[t1]
                 summary['dens 9.8ms (m^-3)'] = N[t2]
                 summary['dens 14.8ms (m^-3)'] = N[t3]
+                result['is_loaded'] = True
+
             except:
                 summary['max line avg dens (m^-3)'] = 1
                 summary['max time (ms)'] = 0
@@ -388,6 +430,19 @@ class Interferometer(WhamDiagnostic):
                 result['is_loaded'] = False
 
             result['summary'] = summary
+        # Store data time series
+
+        if detail_level == 'data':
+
+            data = {}
+            try:
+                data['time']   = self.time
+                data['linedens'] = self.linedens
+            except:
+                print("Issue with interferometer data", self.shot)
+                result['is_loaded'] = False
+
+            result['data'] = data
         return result
 
 class FluxLoop(WhamDiagnostic):
@@ -424,24 +479,28 @@ class FluxLoop(WhamDiagnostic):
 
         self.z_axis= np.array([Z1, Z2, Z3]) * 100 # cm
 
-        psi_lim = tree.getNode("shot_params.psi_lim").getData().data()
-        self.psi_lim = psi_lim * 1e8 # Mx
-
-        B0_vs_z_node = tree.getNode("shot_params.b0_vs_z")
-        B = B0_vs_z_node.getData().data() # T
-        Z = B0_vs_z_node.dim_of().data() * 100 # cm
-        Bz = interp1d(Z,B, kind='cubic', bounds_error=False, fill_value=0)
-
-        self.B_func = Bz
-        self.B_flux = Bz(self.z_axis)
-
-        P1 = tree.getNode(f"{path}.p_perp1").getData().data()
-        P2 = tree.getNode(f"{path}.p_perp2").getData().data()
-        P3 = tree.getNode(f"{path}.p_perp3").getData().data()
-
-        self.P1 = P1
-        self.P2 = P2
-        self.P3 = P3
+        if self.shot > 241001000:
+            # not clear what the correct start date is. 
+            # shot_params.psi_lim is NOT present 0806
+            # p_perp1 (not entirely correct with EqRecon) likely has a different start date
+            psi_lim = tree.getNode("shot_params.psi_lim").getData().data()
+            self.psi_lim = psi_lim * 1e8 # Mx
+    
+            B0_vs_z_node = tree.getNode("shot_params.b0_vs_z")
+            B = B0_vs_z_node.getData().data() # T
+            Z = B0_vs_z_node.dim_of().data() * 100 # cm
+            Bz = interp1d(Z,B, kind='cubic', bounds_error=False, fill_value=0)
+    
+            self.B_func = Bz
+            self.B_flux = Bz(self.z_axis)
+    
+            P1 = tree.getNode(f"{path}.p_perp1").getData().data()
+            P2 = tree.getNode(f"{path}.p_perp2").getData().data()
+            P3 = tree.getNode(f"{path}.p_perp3").getData().data()
+    
+            self.P1 = P1
+            self.P2 = P2
+            self.P3 = P3
 
 
     def calcPressure(self, psi=2e6,
@@ -580,6 +639,22 @@ class FluxLoop(WhamDiagnostic):
                 result['is_loaded'] = False
 
             result['summary'] = summary
+
+        # Store data time series
+        if detail_level == 'data':
+
+            data = {}
+
+            try:
+                data['time']   = self.time
+                data['flux1'] = self.FL1
+                data['flux2'] = self.FL2
+                data['flux3'] = self.FL3
+            except:
+                print("Issue with flux loop data", self.shot)
+                result['is_loaded'] = False
+
+            result['data'] = data
         return result
 
 class AXUV(WhamDiagnostic):
@@ -1309,13 +1384,48 @@ class EndRing(WhamDiagnostic):
         tree = self.tree
         source = "bias.end_rings"
 
-        ProbeArr = np.array([tree.getNode(f"{source}.N{j}.voltage.signal").getData().data() for j in range(10)])
-        SmoothArr = np.array([tree.getNode(f"{source}.N{j}.voltage.filtered").getData().data() for j in range(10)])
-        time = tree.getNode(f"{source}.N0.voltage.signal").dim_of().data() * 1e3 # ms
+        if self.shot > 250101000:
+            # need to check exact date
+            ProbeArr = np.array([tree.getNode(f"{source}.N{j}.voltage.signal").getData().data() for j in range(10)])
+            SmoothArr = np.array([tree.getNode(f"{source}.N{j}.voltage.filtered").getData().data() for j in range(10)])
+            time = tree.getNode(f"{source}.N0.voltage.signal").dim_of().data() * 1e3 # ms
 
-        # temp
-        #SmoothArr[0] = bias.RVs
-        #ProbeArr[0] = bias.R_VLem
+        else:
+            # for old shots, circa 2409
+            source = "raw.acq196_370"
+            # get source nodes, these are uploaded by the DTACQ
+            idx = np.arange(20,30)[::-1] + 1 # channels 21-30
+            dtacq_arr = [ tree.getNode(f"{source}.ch_{j+1:02d}") for j in idx ]
+            t_delay = tree.getNode(f"{source}.trig_time").getData().data()
+            dtacq_time = dtacq_arr[0].getData().dim_of().data()
+            time = (dtacq_time + t_delay) * 1e3
+
+            # Get data
+            R1=270e3 # upper voltage divider resistor, Ohm
+            R2=2.7e3 # lower voltage divider resistor, Ohm
+            win = 101 # savgol window
+            pol = 3   # savgol polynomial
+            V_factor = (R1+R2)/R2
+
+            # zero offset
+            def zero_offset(f,idx=1000):
+                f -= np.mean(f[:idx])
+            
+            ProbeArr = []
+            SmoothArr = []
+            N_ring = 10
+            for j in range(N_ring):
+                Vf = dtacq_arr[j].getData().data() * V_factor
+                zero_offset(Vf)
+                Vs = savgol(Vf,win,pol)
+            
+                ProbeArr.append(Vf)
+                SmoothArr.append(Vs)
+            ProbeArr = np.array(ProbeArr)
+            SmoothArr = np.array(SmoothArr)
+            # temp
+            #SmoothArr[0] = bias.RVs
+            #ProbeArr[0] = bias.R_VLem
 
         # use bottom radii for rings 1-9, and middle for disk 0
         rax = np.array([4.0,8.0,11.1,13.4,15.3,16.9,18.3,19.5,20.6,21.6]) # end cell plane
@@ -1426,6 +1536,10 @@ class Dalpha(WhamDiagnostic):
         data = np.array([tree.getNode(f"{root}.los_{j+1:02d}").getData().data() for j in range(8)])
         time = tree.getNode(f"{root}.los_01").dim_of().data() * 1e3 #ms
         radius = tree.getNode(f"{root}.impact_param").getData().data() / 10 # cm
+
+        # calibration factor 6/23
+        calib = np.array([0.73041808, 1, 0.3575101, 0.53852967, 0.81609771, 0.72557232, 1,1]) # add buffer for last two ignored channels
+        data = data/calib[:, np.newaxis]
 
         # filter non-physical peaks from D-alpha
         arg = np.argwhere( np.abs(data) > 1e20)
