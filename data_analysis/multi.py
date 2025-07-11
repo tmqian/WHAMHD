@@ -72,7 +72,7 @@ def plot9(shot, save="", plot_limiter_bias=False, tag=""):
         bias = BiasPPS(shot)
 
         LV = bias.L_VLem
-        LI = bias.L_ILem - LV/1.4
+        LI = bias.L_ILem 
         RV = bias.R_VLem
         RI = bias.R_ILem 
         time = bias.time
@@ -85,7 +85,8 @@ def plot9(shot, save="", plot_limiter_bias=False, tag=""):
         ax = axs[2,2]
         ax.plot(time, bias.R_Dem*1e2, 'C0', label="Ring Demand [cV]")
         ax.plot(time, RV, 'C1', label="Ring Potential [V]")
-        ax.plot(time, RI*10, 'C5', label="Ring Current [10x A]")
+        ax.plot(time, RI, 'C5', label="Ring Current [A]")
+        #ax.plot(time, RI*10, 'C5', label="Ring Current [10x A]")
     except:
         print(f"Issue with Bias {shot}")
     
@@ -222,12 +223,8 @@ def plot12(shot, save="", plot_limiter_bias=False, tag=""):
         bias = BiasPPS(shot)
 
         LV = bias.L_VLem
-        LI = bias.L_ILem - LV/1.4
+        LI = bias.L_ILem 
         RV = bias.R_VLem
-        if shot > 250319000:
-            RI = bias.R_ILem  - RV/1.4
-        else:
-            RI = bias.R_ILem 
         time = bias.time
 
         ax = axs[2,1]
@@ -588,7 +585,7 @@ def plot8(shot, axs=None, plotLimiter=True):
         if plotLimiter:
 
             V = bias.L_VLem
-            I = bias.L_ILem - V/1.4
+            I = bias.L_ILem 
 
             axs[2,0].set_title(r"Limiter Potential [V]")
             axs[3,0].set_title(r"Limiter Current [A]")
@@ -726,7 +723,7 @@ def plot82(shot, axs=None, plotLimiter=True, lw=1, color=None):
         if plotLimiter:
 
             V = bias.L_VLem
-            I = bias.L_ILem - V/1.4
+            I = bias.L_ILem 
 
             axs[2,0].set_title(r"Limiter Potential [V]")
             axs[3,0].set_title(r"Limiter Current [A]")
