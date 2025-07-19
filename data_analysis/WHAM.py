@@ -79,7 +79,7 @@ class WHAM:
         print(f"Diagnostic status for shot {self.shot}:")
         for name in self.diagnostic_classes.keys():
             diag = getattr(self, name)
-            status_str = "✓ Loaded" if diag.is_loaded else f"✗ Failed: {diag.load_status_message}"
+            status_str = "Loaded" if diag.is_loaded else f"Failed: {diag.load_status_message}"
             print(f"  {name}: {status_str}")
 
     def to_dict(self, detail_level='summary'):
@@ -119,6 +119,7 @@ class WHAM:
             - 'status': always include is_loaded info
             - 'summary': Also include summary
             - 'full': include summary and full data
+            - 'compressed': include summary and full data
     
         Returns
         -------
@@ -130,27 +131,35 @@ class WHAM:
             "is_loaded": {},
         }
     
-        if detail_level in ('summary', 'full'):
+        if detail_level in ('summary', 'full', 'compressed'):
             result["summary"] = {}
     
         if detail_level == 'full':
             result["full"] = {}
+
+        if detail_level == 'compressed':
+            result["compressed"] = {}
     
         for name in self.diagnostic_classes.keys():
             diag = getattr(self, name)
             result["is_loaded"][name] = diag.is_loaded
     
-            if detail_level in ('summary', 'full'):
+            if detail_level in ('summary', 'full', 'compressed'):
                 result["summary"][name] = diag.to_dict('summary')['summary']
     
             if detail_level == 'full':
                 result["full"][name] = diag.to_dict('data')['data']
     
+            if detail_level == 'compressed':
+                result["compressed"][name] = diag.to_dict('compressed')['compressed']
+
         return result
 
-    def save_full_h5(self, filename):
-        # temp
-        data = self.to_json(detail_level='full')
+    def save_data_h5(self, filename, level='full'):
+        '''
+        one size fits all "level" for all diagnostics
+        '''
+        data = self.to_json(detail_level=level)
         save_dict_to_h5(data, filename)
         print(f"saved {filename}")
 

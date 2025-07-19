@@ -394,7 +394,23 @@ class Interferometer(WhamDiagnostic):
             # propagate change forward from t=t0
             self.linedens[t:] += N*dn
 
-    def to_dict(self, detail_level='summary'):
+    def hasSkip(self):
+        '''
+        returns boolean if fringe skip detected
+        '''
+        t0,t1 = get_time_array(self.time, [-1,22])
+
+        data = self.linedens
+        beg = np.mean(data[:t0])
+        end = np.mean(data[t1:])
+     
+        skip = np.abs(beg-end) > 1e18
+        return skip
+
+    def to_dict(self, detail_level='summary', n_compressed=10000):
+        '''
+        n_compressed: for decimation, save N total points in time, equally spaced
+        '''
 
         # Always include status information
         result = {
@@ -419,6 +435,8 @@ class Interferometer(WhamDiagnostic):
                 summary['dens 4.8ms (m^-3)'] = N[t1]
                 summary['dens 9.8ms (m^-3)'] = N[t2]
                 summary['dens 14.8ms (m^-3)'] = N[t3]
+                summary['fringe_skip_detected'] = self.hasSkip()
+
                 result['is_loaded'] = True
 
             except:
@@ -427,12 +445,14 @@ class Interferometer(WhamDiagnostic):
                 summary['dens 4.8ms (m^-3)'] = 1
                 summary['dens 9.8ms (m^-3)'] = 1
                 summary['dens 14.8ms (m^-3)'] = 1
+                summary['fringe_skip_detected'] = False
                 result['is_loaded'] = False
 
             result['summary'] = summary
-        # Store data time series
 
+        # Store data time series
         if detail_level == 'data':
+            # full data
 
             data = {}
             try:
@@ -443,6 +463,19 @@ class Interferometer(WhamDiagnostic):
                 result['is_loaded'] = False
 
             result['data'] = data
+
+        # Store decimated time series
+        if detail_level == 'compressed':
+            data = {}
+            try:
+                N_spacing = len(self.time) // n_compressed
+                data['time']   = self.time[::N_spacing]
+                data['linedens'] = self.linedens[::N_spacing]
+            except:
+                print("Issue with interferometer data", self.shot)
+                result['is_loaded'] = False
+
+            result['compressed'] = data
         return result
 
 class FluxLoop(WhamDiagnostic):
