@@ -312,7 +312,8 @@ def fit_curvature(roi, shift, shift_err, use_predetermined_curvature=False):
 
 
 def process(filename,args,savefig=True,LOS=None):
-    ''' evaluate the Doppler shift
+    ''' 
+    evaluate the Doppler shift
     '''
 
     data = []
@@ -362,8 +363,10 @@ class Spectrometer(WhamDiagnostic):
 
         f1 = f"{path}/WHAM1_{shot}.spe"
         f2 = f"{path}/WHAM2_{shot}.spe"
+        f3 = f"{path}/WHAM3_{shot}.spe"
 
-        if int(year) >= 25 and int(month) >= 3 and int(day) >= 6:
+        if int(shot[:6] > 250306):
+#        if int(year) >= 25 and int(month) >= 3 and int(day) >= 6:
             print('using new impact parameters from 2025 March (LOS_2503)')
             self.LOS = LOS_2503
         else:

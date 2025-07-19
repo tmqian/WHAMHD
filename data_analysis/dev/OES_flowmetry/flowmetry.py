@@ -340,7 +340,7 @@ def plot_fit(fit, config):
     filename = fit['filename'].item()
     
     import matplotlib.pyplot as plt
-    plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(10, 10))
     
     # spectrum
     for i in range(nline):
@@ -379,7 +379,8 @@ def plot_fit(fit, config):
     ax.set_ylabel('intensity (normalized)')
     ax.axvline(0, ls='--', color="0.5")        
     ax.legend()
-    ax.set_title(filename)
+    #ax.set_title(filename)
+    fig.suptitle(filename)
 
     # velocity
     ax = plt.subplot(nline, 2, 4)
