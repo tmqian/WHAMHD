@@ -370,6 +370,10 @@ class Interferometer(WhamDiagnostic):
         self.time = time
         self.linedens = linedens - offset
 
+        # test
+        self.linedens_unfixed = tree.getNode("diag.interferomtr.dens_unfixed").getData().data() 
+        self.time_unfixed = tree.getNode("diag.interferomtr.time_unfixed").getData().data() * 1e3 # probably doesn't matter
+
     def plot(self):
         fig,axs = plt.subplots(1,1,figsize=(10,5))
         axs.plot(self.time,self.linedens,'C1', label=r"Line Density [m$^{-2}$]")
@@ -394,20 +398,20 @@ class Interferometer(WhamDiagnostic):
             # propagate change forward from t=t0
             self.linedens[t:] += N*dn
 
-    def hasSkip(self):
+    def hasSkip(self, data, time):
         '''
         returns boolean if fringe skip detected
         '''
-        t0,t1 = get_time_array(self.time, [-1,22])
+        t0,t1 = get_time_array(time, [-1,22])
 
-        data = self.linedens
+        #data = self.linedens
         beg = np.mean(data[:t0])
         end = np.mean(data[t1:])
      
         skip = np.abs(beg-end) > 1e18
         return skip
 
-    def to_dict(self, detail_level='summary', n_compressed=10000):
+    def to_dict(self, detail_level='summary', N_points=10000):
         '''
         n_compressed: for decimation, save N total points in time, equally spaced
         '''
@@ -435,7 +439,8 @@ class Interferometer(WhamDiagnostic):
                 summary['dens 4.8ms (m^-3)'] = N[t1]
                 summary['dens 9.8ms (m^-3)'] = N[t2]
                 summary['dens 14.8ms (m^-3)'] = N[t3]
-                summary['fringe_skip_detected'] = self.hasSkip()
+                summary['fringe_skip_mds'] = self.hasSkip(self.linedens, self.time)
+                summary['fringe_skip_raw'] = self.hasSkip(self.linedens_unfixed, self.time_unfixed)
 
                 result['is_loaded'] = True
 
@@ -468,9 +473,19 @@ class Interferometer(WhamDiagnostic):
         if detail_level == 'compressed':
             data = {}
             try:
-                N_spacing = len(self.time) // n_compressed
-                data['time']   = self.time[::N_spacing]
-                data['linedens'] = self.linedens[::N_spacing]
+                '''
+                N_points: output size. 
+                N_block: raw points per output
+                trim: cuts the round off from blocking
+                '''
+                N_block = len(self.time) // N_points
+                trim = N_points * N_block
+                
+                data['time'] = self.time[:trim].reshape(-1, N_block).mean(axis=1)
+                #data['time']   = self.time[::N_block][:N_points] # decimated time
+                data['linedens_smoothed'] = self.linedens[:trim].reshape(-1, N_block).mean(axis=1)
+                data['linedens_decimated'] = self.linedens[::N_block][:N_points]
+
             except:
                 print("Issue with interferometer data", self.shot)
                 result['is_loaded'] = False
