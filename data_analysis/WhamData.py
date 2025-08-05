@@ -172,6 +172,10 @@ class BiasPPS(WhamDiagnostic):
 
         super().__init__(shot)
 
+        if shot < 240815000: 
+            print("bias: load failed, likely missing tree, falling back to raw data load")
+            self.load_raw()
+
     def load(self, 
             shot_L_parallel_resistor = 250201000, # check this dates!
             shot_R_parallel_resistor = 250319000,
@@ -246,6 +250,98 @@ class BiasPPS(WhamDiagnostic):
         if self.shot > shot_labview_demand:
             self.load_labview_demand()
 
+    def load_raw(self):
+        '''
+        loads data from raw nodes on data2, as used for 2024-APS
+        '''
+
+        tree = self.tree
+
+        # load data from nodes
+        raw = "raw.acq196_370"
+
+        raw_L_Dem = tree.getNode(f"{raw}.ch_01").getData().data()
+        raw_L_ILem = tree.getNode(f"{raw}.ch_02").getData().data()
+        raw_L_VLem = tree.getNode(f"{raw}.ch_03").getData().data()
+        raw_L_Vpps = tree.getNode(f"{raw}.ch_04").getData().data()
+        raw_R_Dem = tree.getNode(f"{raw}.ch_05").getData().data()
+        raw_R_ILem = tree.getNode(f"{raw}.ch_06").getData().data()
+        raw_R_VLem = tree.getNode(f"{raw}.ch_07").getData().data()
+        raw_R_Vpps = tree.getNode(f"{raw}.ch_08").getData().data()
+        raw_L_VFB = tree.getNode(f"{raw}.ch_09").getData().data()
+        raw_R_VFB = tree.getNode(f"{raw}.ch_10").getData().data()
+
+
+        # time
+        if self.shot > 240806000: # need to check threshold (!)
+            dtacq_time = tree.getNode(f"{raw}.ch_01").getData().dim_of().data() * 1e3 # ms
+            dtacq_delay = tree.getNode(f"{raw}.trig_time").getData().data() * 1e3 # ms, value -5 means dtacq starts at t=-5ms
+            t_delay = tree.getNode(f"bias.bias_params.trig_time").getData().data() * 1e3 # ms, this is programmed bias delay
+            time = dtacq_time + dtacq_delay
+        else:
+            # old way, at least as recent as 0730 data
+            t_max = 100 # ms
+            N_points = len(raw_L_Dem)
+            t_delay = tree.getNode(f"{raw}.delay").getData().data() # ms, positive
+            time = np.linspace(0,t_max, N_points) - t_delay
+
+        # calibrate data (this should be added to MDS+)
+
+        L_Dem = raw_L_Dem
+        R_Dem = raw_R_Dem
+        
+        L_ILem = raw_L_ILem * self.ILEM_gain
+        R_ILem = raw_R_ILem * self.ILEM_gain
+        
+        L_VLem = raw_L_VLem * self.VLEM_gain
+        R_VLem = raw_R_VLem * self.VLEM_gain
+        L_Vpps = raw_L_Vpps * self.VLEM_gain
+        R_Vpps = raw_R_Vpps * self.VLEM_gain
+        
+        L_VFB = raw_L_VFB * self.VFBK_gain 
+        R_VFB = raw_R_VFB * self.VFBK_gain 
+
+        # zero offset
+        def zero_offset(f,idx=2000):
+            f -= np.mean(f[-idx:])
+        
+        zero_offset(L_Dem)
+        zero_offset(R_Dem)
+        zero_offset(L_ILem)
+        zero_offset(R_ILem)
+        zero_offset(L_VLem)
+        zero_offset(R_VLem)
+        zero_offset(L_Vpps)
+        zero_offset(R_Vpps)
+        zero_offset(L_VFB)
+        zero_offset(R_VFB)
+
+
+        # save
+        self.time = time
+
+        self.raw_L_Dem  = raw_L_Dem
+        self.raw_L_ILem = raw_L_ILem
+        self.raw_L_VLem = raw_L_VLem
+        self.raw_L_Vpps = raw_L_Vpps
+        self.raw_R_Dem  = raw_R_Dem
+        self.raw_R_ILem = raw_R_ILem
+        self.raw_R_VLem = raw_R_VLem
+        self.raw_R_Vpps = raw_R_Vpps
+        self.raw_L_VFB  = raw_L_VFB 
+        self.raw_R_VFB  = raw_R_VFB
+
+        self.L_Dem  = L_Dem
+        self.L_ILem = L_ILem
+        self.L_VLem = L_VLem
+        self.L_Vpps = L_Vpps
+        self.R_Dem  = R_Dem
+        self.R_ILem = R_ILem
+        self.R_VLem = R_VLem
+        self.R_Vpps = R_Vpps
+        self.L_VFB  = L_VFB 
+        self.R_VFB  = R_VFB
+
     def load_labview_demand(self):
 
         # load demand
@@ -312,7 +408,7 @@ class BiasPPS(WhamDiagnostic):
 
         fig.tight_layout()
 
-    def to_dict(self, detail_level='summary'):
+    def to_dict(self, detail_level='summary', N_points=10000):
 
         # Always include status information
         result = {
@@ -352,6 +448,37 @@ class BiasPPS(WhamDiagnostic):
 
             result['data'] = data
 
+        if detail_level == 'compressed':
+
+            data = {}
+            try:
+                '''
+                N_points: output size. 
+                N_block: raw points per output
+                trim: cuts the round off from blocking
+                '''
+                N_block = len(self.time) // N_points
+                trim = N_points * N_block
+                
+                data['time'] = self.time[:trim].reshape(-1, N_block).mean(axis=1)
+                #data['time']   = self.time[::N_block][:N_points] # decimated time
+
+                def compress(tag, trace):
+                    data[f'{tag}_smoothed']  = trace[:trim].reshape(-1, N_block).mean(axis=1)
+                    data[f'{tag}_decimated'] = trace[::N_block][:N_points]
+
+                compress('V_ring', self.R_VLem)
+                compress('V_lim' , self.L_VLem)
+                compress('I_ring', self.R_ILem)
+                compress('I_lim', self.L_ILem)
+
+
+            except:
+                print("Issue with bias data compression", self.shot)
+                result['is_loaded'] = False
+
+            result['compressed'] = data
+
         return result
 
 class Interferometer(WhamDiagnostic):
@@ -371,8 +498,9 @@ class Interferometer(WhamDiagnostic):
         self.linedens = linedens - offset
 
         # test
-        self.linedens_unfixed = tree.getNode("diag.interferomtr.dens_unfixed").getData().data() 
-        self.time_unfixed = tree.getNode("diag.interferomtr.time_unfixed").getData().data() * 1e3 # probably doesn't matter
+        if self.shot > 240901000: # this is an arbitary cut off
+            self.linedens_unfixed = tree.getNode("diag.interferomtr.dens_unfixed").getData().data() 
+            self.time_unfixed = tree.getNode("diag.interferomtr.time_unfixed").getData().data() * 1e3 # probably doesn't matter
 
     def plot(self):
         fig,axs = plt.subplots(1,1,figsize=(10,5))
@@ -413,7 +541,7 @@ class Interferometer(WhamDiagnostic):
 
     def to_dict(self, detail_level='summary', N_points=10000):
         '''
-        n_compressed: for decimation, save N total points in time, equally spaced
+        N_points: for decimation, save N total points in time, equally spaced
         '''
 
         # Always include status information
@@ -642,7 +770,7 @@ class FluxLoop(WhamDiagnostic):
         axs[0,0].set_ylabel("loop a")
         axs[1,0].set_ylabel("loop b")
 
-    def to_dict(self, detail_level='summary'):
+    def to_dict(self, detail_level='summary', N_points=10000):
 
         # Always include status information
         result = {
@@ -703,6 +831,36 @@ class FluxLoop(WhamDiagnostic):
                 result['is_loaded'] = False
 
             result['data'] = data
+
+        if detail_level == 'compressed':
+
+            data = {}
+            try:
+                '''
+                N_points: output size. 
+                N_block: raw points per output
+                trim: cuts the round off from blocking
+                '''
+                N_block = len(self.time) // N_points
+                trim = N_points * N_block
+                
+                data['time'] = self.time[:trim].reshape(-1, N_block).mean(axis=1)
+                #data['time']   = self.time[::N_block][:N_points] # decimated time
+
+                def compress(tag, trace):
+                    data[f'{tag}_smoothed']  = trace[:trim].reshape(-1, N_block).mean(axis=1)
+                    data[f'{tag}_decimated'] = trace[::N_block][:N_points]
+
+                compress("flux1", self.FL1)
+                compress("flux2", self.FL2)
+                compress("flux3", self.FL3)
+
+            except:
+                print("Issue with flux loop data compression", self.shot)
+                result['is_loaded'] = False
+
+            result['compressed'] = data
+
         return result
 
 class AXUV(WhamDiagnostic):
@@ -782,10 +940,6 @@ class ECH(WhamDiagnostic):
         tree = self.tree
 
         source = "ech.ech_proc"
-        self.Fwg_filt = tree.getNode(f"{source}.wg_monitor_f.filtered").getData().data()
-        self.Rwg_filt = tree.getNode(f"{source}.wg_monitor_r.filtered").getData().data()
-        self.Vs_filt =  tree.getNode(f"{source}.ves_monitor.filtered").getData().data()
-        self.time = tree.getNode(f"{source}.wg_monitor_f.filtered").dim_of().data() * 1e3 # ms
 
         # Read gyrotron parameters from MDSplus
         params = "ech.ech_params"
@@ -796,6 +950,18 @@ class ECH(WhamDiagnostic):
         self.ech_target = tree.getNode(f"{params}.ech_target").getData().data()
         self.pol_ang_1 = tree.getNode(f"{params}.pol_ang_1").getData().data()
         self.pol_ang_2 = tree.getNode(f"{params}.pol_ang_2").getData().data()
+
+        if self.shot > 240901000: # this is an arbitrary number, I know 0730 doesnt work
+            self.Fwg_filt = tree.getNode(f"{source}.wg_monitor_f.filtered").getData().data()
+            self.Rwg_filt = tree.getNode(f"{source}.wg_monitor_r.filtered").getData().data()
+            self.Vs_filt =  tree.getNode(f"{source}.ves_monitor.filtered").getData().data()
+            self.time = tree.getNode(f"{source}.wg_monitor_f.filtered").dim_of().data() * 1e3 # ms
+        else:
+            self.Fwg_filt = tree.getNode(f"{source}.wg_monitor_f.signal").getData().data()
+            self.Rwg_filt = tree.getNode(f"{source}.wg_monitor_r.signal").getData().data()
+            self.Vs_filt =  tree.getNode(f"{source}.ves_monitor.signal").getData().data()
+            self.time = tree.getNode(f"{source}.wg_monitor_f.signal").dim_of().data() * 1e3 # ms
+
 
     def plot(self):
         fig,axs = plt.subplots(3,1, sharex=True, figsize=(8,6))
@@ -812,7 +978,7 @@ class ECH(WhamDiagnostic):
 
         plt.show()
 
-    def to_dict(self, detail_level='summary'):
+    def to_dict(self, detail_level='summary', N_points=10000):
 
         # Always include status information
         result = {
@@ -840,6 +1006,35 @@ class ECH(WhamDiagnostic):
                 result['is_loaded'] = False
 
             result['summary'] = summary
+
+        if detail_level == 'compressed':
+
+            data = {}
+            try:
+                '''
+                N_points: output size. 
+                N_block: raw points per output
+                trim: cuts the round off from blocking
+                '''
+
+                N_block = len(self.time) // N_points
+                trim = N_points * N_block
+                
+                data['time'] = self.time[:trim].reshape(-1, N_block).mean(axis=1)
+                #data['time']   = self.time[::N_block][:N_points] # decimated time
+
+                def compress(tag, trace):
+                    data[f'{tag}_smoothed']  = trace[:trim].reshape(-1, N_block).mean(axis=1)
+                    data[f'{tag}_decimated'] = trace[::N_block][:N_points]
+
+                compress('ECH_KW', self.Fwg_filt)
+
+            except:
+                print("Issue with ECH data compression", self.shot)
+                result['is_loaded'] = False
+
+            result['compressed'] = data
+
         return result
 
 
