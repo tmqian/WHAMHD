@@ -56,6 +56,7 @@ class WhamDiagnostic:
             Level of detail to include:
             - 'status': Only loading status
             - 'summary': Key metrics (default)
+            - 'compressed': decimated and smoothed datasets
             - 'full': Complete dataset
             
         Returns:
@@ -432,7 +433,7 @@ class BiasPPS(WhamDiagnostic):
             result['summary'] = summary
 
         # Store data time series
-        if detail_level == 'data':
+        if detail_level == 'full':
 
             data = {}
 
@@ -584,9 +585,9 @@ class Interferometer(WhamDiagnostic):
             result['summary'] = summary
 
         # Store data time series
-        if detail_level == 'data':
-            # full data
+        if detail_level == 'full':
 
+            # full data
             data = {}
             try:
                 data['time']   = self.time
@@ -817,7 +818,7 @@ class FluxLoop(WhamDiagnostic):
             result['summary'] = summary
 
         # Store data time series
-        if detail_level == 'data':
+        if detail_level == 'full':
 
             data = {}
 
@@ -1034,6 +1035,22 @@ class ECH(WhamDiagnostic):
                 result['is_loaded'] = False
 
             result['compressed'] = data
+
+
+        # Store data time series
+        if detail_level == 'full':
+
+            data = {}
+
+            try:
+                data['time']   = self.time
+                data['ECH_KW'] = self.Fwg_filt
+            except:
+                print("Issue with flux loop data", self.shot)
+                result['is_loaded'] = False
+
+            result['data'] = data
+
 
         return result
 

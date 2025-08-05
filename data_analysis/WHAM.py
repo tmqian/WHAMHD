@@ -148,7 +148,7 @@ class WHAM:
                 result["summary"][name] = diag.to_dict('summary')['summary']
     
             if detail_level == 'full':
-                result["full"][name] = diag.to_dict('data')['data']
+                result["full"][name] = diag.to_dict('full')['data']
     
             if detail_level == 'compressed':
                 result["compressed"][name] = diag.to_dict('compressed')['compressed']
