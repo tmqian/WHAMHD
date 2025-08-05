@@ -174,6 +174,8 @@ class BiasPPS(WhamDiagnostic):
         super().__init__(shot)
 
         if shot < 240815000: 
+            # would be nice to replace this with a try/except for any bias load regardless of date.
+            # but its only the old dates where we expect tree to fail but raw to work. In recent dates both would fail.
             print("bias: load failed, likely missing tree, falling back to raw data load")
             self.load_raw()
 
@@ -285,6 +287,10 @@ class BiasPPS(WhamDiagnostic):
             N_points = len(raw_L_Dem)
             t_delay = tree.getNode(f"{raw}.delay").getData().data() # ms, positive
             time = np.linspace(0,t_max, N_points) - t_delay
+
+            if self.shot // 1000 == 240730:
+                time = time + 1 # ad hoc, seems to work for 0730. Very suspect.
+        
 
         # calibrate data (this should be added to MDS+)
 
@@ -495,6 +501,10 @@ class Interferometer(WhamDiagnostic):
 
         time = tree.getNode("diag.interferomtr.time").getData().data() * 1e3
 
+        if self.shot < 240731000:
+            # ad hoc for 240730
+            time = time -6
+
         self.time = time
         self.linedens = linedens - offset
 
@@ -569,7 +579,10 @@ class Interferometer(WhamDiagnostic):
                 summary['dens 9.8ms (m^-3)'] = N[t2]
                 summary['dens 14.8ms (m^-3)'] = N[t3]
                 summary['fringe_skip_mds'] = self.hasSkip(self.linedens, self.time)
-                summary['fringe_skip_raw'] = self.hasSkip(self.linedens_unfixed, self.time_unfixed)
+
+
+                if hasattr(self, 'lindens_unfixed'):
+                    summary['fringe_skip_raw'] = self.hasSkip(self.linedens_unfixed, self.time_unfixed)
 
                 result['is_loaded'] = True
 
