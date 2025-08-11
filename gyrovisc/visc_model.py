@@ -3,16 +3,14 @@ import matplotlib.pyplot as plt
 import h5py
 import json
 
-'''
-saving copy of viscosity model 1
-which was developed in ipynb
+_save = True
+plot_IV = True
+plot_rotation = True
+plot_model=True
 
-this looks up an experimental data extract, and compares points
-'''
-
-_save = False
-plot_IV = False
-plot_rotation = False
+def save_plot(fig, name):
+    fig.savefig(name)
+    print(f"saved {name}")
 
 from scipy.integrate import cumulative_trapezoid as trap
 # import mac color scheme
@@ -45,10 +43,11 @@ class ViscModel:
                        Te1=5,
                        Ti0=50,
                        Ti1=5,
-                 a = 0.025, # inner boundary, original
-#                 a = 0.002, # inner boundary
+#                 a = 0.025, # inner boundary, original
+#                 a = 0.0425, # map 7.5 cm disk outer radius by sqrt (2500/800 G)
+                 a = 0.03, 
                  B=0.25,
-                 L=0.6,
+                 L=0.5,
                  I=10,
                  ):
 
@@ -71,6 +70,9 @@ class ViscModel:
         self.Ti = Ti
         self.Te = Te
         self.ne = ne
+        self.L = L
+        self.B = B
+        self.a0 = a
 
 
         ### level 2
@@ -91,6 +93,8 @@ class ViscModel:
 
         self.nu_ei = nu_ei
         self.nu_ii = nu_ei * np.sqrt(me/mi)
+        self.pi = pi
+        self.pe = pe
         
         ###
         print(f"ion cyc (Hz): {Omega_ci/2/3.1415:e}")
@@ -156,9 +160,9 @@ class ViscModel:
 
 
         ### Level 7
-        C_rot = -Sigma * I_visc # This is a radial function
+        C_rot = -Sigma * I_visc # radial function : maps volts to v_itheta
 
-        self.vax = vax
+        self.vax = vax # voltage axis
         self.Iax = Iax
         self.rax = rax
         self.radius = r
@@ -167,9 +171,7 @@ class ViscModel:
         self.k = 2*np.pi*L
         # I = k Sigma ( V + Vp)
 
-        self.pe = pe
-        self.L = L
-        self.B = B
+        #self.pe = pe
         self.I_visc = I_visc
         self.C_rot = C_rot
 
@@ -213,6 +215,7 @@ class ViscModel:
 
         for a in axs:
             a.grid()
+            a.set_ylim(bottom=0)
 
         fig.tight_layout()
 
@@ -329,15 +332,18 @@ class ViscModel:
 
 v_ring, I_ring = np.loadtxt("IV.csv", delimiter=",", skiprows=1).T
 v2 = ViscModel(n0=4e18, Ti0=25, Te0=25)
-v3 = ViscModel(n0=9e18, Ti0=40, Te0=40)
+v3 = ViscModel(n0=9e18, Ti0=40, Te0=40, n1=3e18, Ti1=10, Te1=10)
+#v3 = ViscModel(n0=9e18, Ti0=40, Te0=40) # old, "works"
 
-v3.plotProfile()
-v3.plotPlasmaParams()
-v3.plotVelocity()
-#v3.plotForce()
-v3.plotCurrent()
-plt.show()
 
+if plot_model:
+    v3.plotProfile()
+    v3.plotPlasmaParams()
+    v3.plotVelocity()
+    v3.plotForce()
+    v3.plotCurrent()
+
+shift_A = 3 # factor for phi = AT
 
 if plot_IV:
     fig,axs = plt.subplots(1,1, figsize=(6,6))
@@ -346,12 +352,12 @@ if plot_IV:
     # I(V) plot
     axs.plot(v_ring, I_ring, 'o', color=mac['red-orange'], label="experiment")
     for v,c in zip([v3,v2], ['C1', 'C0']):
-        shift = 4*v.Te0
+        shift = shift_A * v.Te0 
         # I(V) plot
         tag = f"model: ne = {v.n0}, Ti = {v.Ti0}, Te = {v.Te0}"
         #tag = f"(n, Ti, Te) = {v.n0}, {v.Ti0}, {v.Te0}"
         axs.plot(v.vax + shift, v.Iax, color=c, label=tag)
-        axs.plot(v.vax , v.Iax, ':', lw=0.7)
+        axs.plot(v.vax , v.Iax, ':', lw=0.7, color=c)
     axs.set_title(r"I(V$_{bias}$) :" + f" L = {v.L}")
     axs.grid()
     axs.legend()
@@ -361,58 +367,105 @@ if plot_IV:
     axs.set_ylim(-1,6)
 
 
+    if _save:
+        save_plot(fig, "gyrovisc-fit.pdf")
+
 
 # rotation plot
 if plot_rotation:
     fig2,ax2 = plt.subplots(1,2, figsize=(12,6))
+
+    # (8/8) this experimental data load is pretty confusing
+    # ah I see. This has all shots. All biases and one radial location.
     v_disc, Vi_m78 = np.loadtxt("bias-rot-m78.csv", delimiter=",", skiprows=1).T
+    # index near 7.2 cm
+    ax2[0].scatter(v_disc, -Vi_m78, color='C4', label="experimental data")
+    #ax2[0].scatter(v_disc, -Vi_m78, color='C4', label="experimental data (r = 7.2 cm)")
     
+    # (8/8) this json dict is much more carefully structured
+    # this has 5 biases, but all radial locations.
+    # first I need to match them
     with open("velocity_profile.json", "r") as f:
         raw = json.load(f)
     vdata_in = {k: np.array(v) for k, v in raw.items()}
+    bias = np.array(list(vdata_in.keys())[:-1], float)
+    bias_str = np.array(list(vdata_in.keys())[:-1])
+    chord_radius = vdata_in['radial_chords']
+    velocity_arr = np.array([vdata_in[s] for s in bias_str])
+
+    # compare json with csv data
+    #ax2[0].plot(bias, -velocity_arr[:,0], 'C0*', ms=10, label=f"r = {chord_radius[0]}")
+    #ax2[0].plot(bias, velocity_arr[:,-1], 'C1^', ms=10, label=f"r = {chord_radius[-1]}")
+
+    _shift = True
+    v = v3
     
-    # index near 7.2 cm
-    i = np.argmin(np.abs(v.radius - 0.072)) # its 7.2222
+
+    i = np.argmin(np.abs(v.radius - 0.072)) 
     for v in [v2,v3]:
-        shift = 4*v.Te0
+        if _shift:
+            shift = shift_A * v.Te0
+        else:
+            shift = 0
         tag = f"(n, Ti, Te) = {v.n0}, {v.Ti0}, {v.Te0}"
-    #    ax2[0].plot(v.vax + shift, -v.C_rot[i] * (v.Vp + v.vax), label=tag)
-        #ax2[0].plot(v.vax, -v.C_rot[i] * (v.Vp + v.vax), '--', label="unshifted")
-        ax2[0].plot(v.vax, -v.C_rot[i] * (v.Vp + v.vax), '--', label=tag)
+        ax2[0].plot(v.vax, -v.C_rot[i] * (v.Vp + v.vax + shift), '--', label=tag)
     
-    ax2[0].scatter(v_disc, -Vi_m78, color='C4')
     ax2[0].legend()
     ax2[0].set_xlim(-240,640)
     ax2[0].set_ylim(-8000,24000)
     
-    ax2[0].set_xlabel("Bias Voltage")
-    ax2[0].set_ylabel("Ion Rotation Velocity")
+    ax2[0].set_xlabel("Bias Voltage [V]", fontsize=14)
+    ax2[0].set_ylabel("Ion Rotation Velocity [m/s]", fontsize=14)
 
-    for j,V in enumerate([-200, 0,200,400,600]):
-        shift = 4*v.Te0
-        #ax2[1].plot(v.radius, -v.C_rot * (v.Vp + V), '--', label=V)
-        ax2[1].plot(v.radius, -v.C_rot * (v.Vp + (V-shift)), '--', label=V, color=f"C{j}")
-    
-    r_chords = vdata_in.pop('radial_chords')/1000 # cm
+    # plot raw data
+    r_chords = vdata_in.pop('radial_chords')/10 # cm
     for j,varr in enumerate(vdata_in.values()):
         ax2[1].plot(r_chords, varr, color=f"C{j}")
-    
-    ax2[1].set_xlabel("radius")
-    ax2[1].set_ylabel("Ion Rotation Velocity")
-    ax2[1].legend()
+        ax2[1].plot(-r_chords, -varr,'o-', color=f"C{j}")
+        if j==4:
+            ax2[1].plot(r_chords, varr,'o', color=f"C{j}", label="experimental data")
+        else:
+            ax2[1].plot(r_chords, varr,'o', color=f"C{j}")
 
-    ax2[1].set_ylim(-2e4,3e4)
-    ax2[1].set_xlim(-0.01, 0.1)
+    # plot model
+    idx = [np.argmin(np.abs(v.radius - r)) for r in v.radius]
+    for j,V_str in enumerate(vdata_in.keys()):
+    #for j,V in enumerate([-200, 0, 200, 400, 600]):
+        V = int(V_str)
+
+        if _shift:
+            shift = shift_A * v.Te[idx]  # profile dependent shift
+        else:
+            shift = 0
+        #V = 0
+
+        model_vel = -v.C_rot * (v.Vp + (V+shift))
+        ax2[1].plot(v.radius*100, model_vel, '--', label=f"{V} V", color=f"C{j}")
+
+        # highlight data
+        #ax2[0].plot(V, -vdata_in[V_str][0], f"C{j}x", ms=10)
+   
+    ax2[1].set_xlabel("Chord Radius [cm]", fontsize=14)
+    ax2[1].set_ylabel("Ion Rotation Velocity [m/s]", fontsize=14)
+
+    ax2[1].axvline(v3.a0*100, color='k', ls='--', lw=0.7, label=f"a = {v3.a0}")
+
+    ax2[1].set_ylim(-1e4,3e4)
+    ax2[1].set_xlim(-1, 10)
+    #ax2[1].set_xlim(-0.01, 0.1)
     for a in ax2:
         a.grid()
 
+    ax2[1].legend()
+    #if _shift:
+    #    fig2.suptitle("shift")
+    #else:
+    #    fig2.suptitle("shift disabled")
+
     fig2.tight_layout()
 
-def save_plot(fig, name):
-    fig.savefig(name)
-    print(f"saved {name}")
+    if _save:
+        save_plot(fig2, "gyrovisc-rotation.pdf")
 
-if _save:
-    save_plot(fig, "gyrovisc-fit.pdf")
 
 plt.show()
