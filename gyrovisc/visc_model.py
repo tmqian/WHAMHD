@@ -3,7 +3,12 @@ import matplotlib.pyplot as plt
 import h5py
 import json
 
-_save = True
+'''
+Updated 11 August 2025
+works for gyrovisc model A
+'''
+
+_save = False
 plot_IV = True
 plot_rotation = True
 plot_model=True
@@ -73,6 +78,7 @@ class ViscModel:
         self.L = L
         self.B = B
         self.a0 = a
+        self.I = I
 
 
         ### level 2
@@ -142,6 +148,7 @@ class ViscModel:
         phi = -trap(Er,r, initial=0) 
 
         self.Er = Er
+        self.phi = phi
 
         ### Level 6
         
@@ -202,23 +209,57 @@ class ViscModel:
         axs.legend()
         axs.set_ylim(bottom=0)
 
+        axs.set_title("Model (n,T) Profiles", fontsize=16)
+        axs.set_ylabel("normalized profile", fontsize=14)
+        axs.set_xlabel("normalized radius", fontsize=14)
+
+        if _save:
+            save_plot(fig, "gyrovisc-modelA-1-profile.pdf")
+
+
+    def plotEr(self):
+
+        fig,axs = plt.subplots(2,1, figsize=(5,7))
+        axs[0].plot(self.rax, self.Er)
+
+        offset = np.min(self.phi)
+        axs[1].plot(self.rax, self.phi-offset, label=f"I = {10} A")
+        axs[1].legend()
+
+        axs[0].set_title(r"Radial Electric Field [V/m]", fontsize=14)
+        axs[1].set_title(r"Potential [V]", fontsize=14)
+        axs[1].set_xlabel(r"normalized radius", fontsize=14)
+
+        for a in axs:
+            a.grid()
+
+        if _save:
+            save_plot(fig, "gyrovisc-modelA-6-Er.pdf")
+
     def plotPlasmaParams(self):
 
-        fig,axs = plt.subplots(3,1)
+        fig,axs = plt.subplots(3,1, figsize=(5,7))
         axs[0].plot(self.rax, self.nu_ii)
         axs[1].plot(self.rax, self.sigma)
         axs[2].plot(self.rax, self.eta)
 
-        axs[0].set_title(r"$\nu_{ii}$ Collisionality")
-        axs[1].set_title(r"$\sigma$ Conductivity")
-        axs[2].set_title(r"$\eta_\wedge^i$ Viscosity")
+        axs[0].set_title(r"$\nu_{ii}$ Collisionality [Hz]", fontsize=14)
+        axs[1].set_title(r"$\sigma$ Conductivity [($\Omega \cdot$m)$^{-1}$]", fontsize=14)
+        axs[2].set_title(r"$\eta_\wedge^i$ Viscosity [Pa$\cdot$s]", fontsize=14)
 
         for a in axs:
             a.grid()
             a.set_ylim(bottom=0)
 
+
+        fig.suptitle("Plasma Parameters", fontsize=12)
+        #axs.set_ylabel("normalized profile", fontsize=14)
+        axs[-1].set_xlabel("normalized radius", fontsize=14)
+
         fig.tight_layout()
 
+        if _save:
+            save_plot(fig, "gyrovisc-modelA-2-plasma.pdf")
 
     def plotForce(self):
         '''
@@ -227,13 +268,12 @@ class ViscModel:
         '''
 
         fig,axs = plt.subplots(2,2, figsize=(8,8))
-        axs[0,0].set_title("ion radial force")
-        axs[0,1].set_title("ion azimuthal force")
-        axs[1,0].set_title("electron radial force")
-        axs[1,1].set_title("electron azimuthal force")
+        axs[0,0].set_title(r"ion radial force [N/m$^{3}$]", fontsize=14)
+        axs[0,1].set_title(r"ion azimuthal force [N/m$^{3}$]", fontsize=14)
+        axs[1,0].set_title(r"electron radial force [N/m$^{3}$]", fontsize=14)
+        axs[1,1].set_title(r"electron azimuthal force [N/m$^{3}$]", fontsize=14)
 
 
-        e = 1.609e-19
         ne = self.ne
         B = self.B
 
@@ -258,7 +298,14 @@ class ViscModel:
             a.legend()
             a.grid()
 
+        fig.suptitle("force balance", fontsize=12)
+        axs[-1,0].set_xlabel("normalized radius", fontsize=14)
+        axs[-1,1].set_xlabel("normalized radius", fontsize=14)
+
         fig.tight_layout()
+
+        if _save:
+            save_plot(fig, "gyrovisc-modelA-4-force.pdf")
 
     def plotVelocity(self):
         '''
@@ -267,12 +314,11 @@ class ViscModel:
         '''
 
         fig,axs = plt.subplots(2,2, figsize=(8,8))
-        axs[0,0].set_title("ion azimuthal velocity")
-        axs[1,0].set_title("electron azimuthal velocity")
-        axs[0,1].set_title("ion radial velocity")
-        axs[1,1].set_title("electron radial velocity")
+        axs[0,0].set_title("ion azimuthal velocity [m/s]", fontsize=14)
+        axs[1,0].set_title("electron azimuthal velocity [m/s]", fontsize=14)
+        axs[0,1].set_title("ion radial velocity [m/s]", fontsize=14)
+        axs[1,1].set_title("electron radial velocity [m/s]", fontsize=14)
 
-        e = 1.609e-19
         ne = self.ne
         B = self.B
         sigma = self.sigma
@@ -298,14 +344,21 @@ class ViscModel:
             a.legend()
             a.grid()
 
+        fig.suptitle("transverse flow", fontsize=12)
+        axs[-1,0].set_xlabel("normalized radius", fontsize=14)
+        axs[-1,1].set_xlabel("normalized radius", fontsize=14)
+
         fig.tight_layout()
+
+        if _save:
+            save_plot(fig, "gyrovisc-modelA-3-velocity.pdf")
 
     def plotCurrent(self):
         fig,axs = plt.subplots(2,2, figsize=(8,8))
-        axs[0,0].set_title("radial current")
-        axs[0,1].set_title("azimuthal current")
 
-        e = 1.609e-19
+        axs[0,0].set_title("radial", fontsize=14)
+        axs[0,1].set_title("azimuthal",fontsize=14)
+
         ne = self.ne
 
         axs[0,0].plot(self.rax, self.Jr, 'k', label=r"$J_{r}$")
@@ -328,7 +381,16 @@ class ViscModel:
             a.legend()
             a.grid()
 
+        fig.suptitle("plasma current", fontsize=12)
+        axs[-1,0].set_xlabel("normalized radius", fontsize=14)
+        axs[-1,1].set_xlabel("normalized radius", fontsize=14)
+        axs[0,0].set_ylabel(r"current [A/m$^2$]", fontsize=14)
+        axs[1,0].set_ylabel(r"flow [m/s]", fontsize=14)
+
         fig.tight_layout()
+
+        if _save:
+            save_plot(fig, "gyrovisc-modelA-5-current.pdf")
 
 v_ring, I_ring = np.loadtxt("IV.csv", delimiter=",", skiprows=1).T
 v2 = ViscModel(n0=4e18, Ti0=25, Te0=25)
@@ -342,6 +404,7 @@ if plot_model:
     v3.plotVelocity()
     v3.plotForce()
     v3.plotCurrent()
+    v3.plotEr()
 
 shift_A = 3 # factor for phi = AT
 
