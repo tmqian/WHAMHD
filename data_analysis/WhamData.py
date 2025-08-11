@@ -427,13 +427,31 @@ class BiasPPS(WhamDiagnostic):
             summary = {}
 
             try:
-                Vlim = np.max(self.Ldem_V) # this is bad, if Vlim<0 or Vring>0, it will give the wrong answer
-                Vring = np.min(self.Rdem_V)
-                summary['limiter_bias'] = Vlim
-                summary['ring_bias'] = Vring
+                '''
+                the code used to read the demand voltage.
+                but the demand is not an accurate representation of output for older shots (there is a cap bank dependent charge conversion)
+
+                for newer shots the demand is available while the lem is NOT, so it makes sense to use the demand as a back up
+                '''
+                # smooth
+                t1,t2 = get_time_array(self.time, [9.5,9.9])
+                V_Lim = self.L_VLem[t1:t2].mean() 
+                V_Ring = self.R_VLem[t1:t2].mean()
+                I_Lim = self.L_ILem[t1:t2].mean() 
+                I_Ring = self.R_ILem[t1:t2].mean()
+                #Vlim = np.max(self.Ldem_V) # this is bad, if Vlim<0 or Vring>0, it will give the wrong answer
+                #Vring = np.min(self.Rdem_V)
+
+                summary['limiter_bias'] = V_lim
+                summary['ring_bias'] = V_ring
+                summary['limiter_current'] = V_lim
+                summary['ring_current'] = I_ring
             except:
                 summary['limiter_bias'] = 0
                 summary['ring_bias'] = 0
+                summary['limiter_current'] = 0
+                summary['ring_current'] = 0
+
                 result['is_loaded'] = False
 
             result['summary'] = summary
@@ -624,7 +642,6 @@ class Interferometer(WhamDiagnostic):
                 trim = N_points * N_block
                 
                 data['time'] = self.time[:trim].reshape(-1, N_block).mean(axis=1)
-                #data['time']   = self.time[::N_block][:N_points] # decimated time
                 data['linedens_smoothed'] = self.linedens[:trim].reshape(-1, N_block).mean(axis=1)
                 data['linedens_decimated'] = self.linedens[::N_block][:N_points]
 
@@ -758,7 +775,7 @@ class FluxLoop(WhamDiagnostic):
         fig.tight_layout()
         return fig,axs
 
-    def load_raw(self, axs=None, N=100, alpha=0.7):
+    def load_raw(self, axs=None, N=100, M=10, alpha=0.7):
 
         tree = self.tree
 
@@ -771,18 +788,24 @@ class FluxLoop(WhamDiagnostic):
         sig3a = tree.getNode(f"{raw}.ch_05").getData().data()
         sig3b = tree.getNode(f"{raw}.ch_06").getData().data()
 
-        axs[0,0].plot(sig1a[::N], label=f"{self.shot}", alpha=alpha)
-        axs[1,0].plot(sig1b[::N], alpha=alpha)
-        axs[0,1].plot(sig2a[::N], alpha=alpha)
-        axs[1,1].plot(sig2b[::N], alpha=alpha)
-        axs[0,2].plot(sig3a[::N], alpha=alpha)
-        axs[1,2].plot(sig3b[::N], alpha=alpha)
+        if not axs:
+            fig, axs = plt.subplots(2,3, figsize=(11,7), sharex=True)
+
+        # 8/11/25: it looks like the raw data and the mds flux data have different sampling rates, mds is 10x decimated
+        axs[0,0].plot(self.time[::M], sig1a[::N], lw=0.7, label=f"{self.shot}", alpha=alpha)
+        axs[1,0].plot(self.time[::M], sig1b[::N], lw=0.7, alpha=alpha)
+        axs[0,1].plot(self.time[::M], sig2a[::N], lw=0.7, alpha=alpha)
+        axs[1,1].plot(self.time[::M], sig2b[::N], lw=0.7, alpha=alpha)
+        axs[0,2].plot(self.time[::M], sig3a[::N], lw=0.7, alpha=alpha)
+        axs[1,2].plot(self.time[::M], sig3b[::N], lw=0.7, alpha=alpha)
 
         axs[0,0].set_title("Flux Loop 1")
         axs[0,1].set_title("Flux Loop 2")
         axs[0,2].set_title("Flux Loop 3")
         axs[0,0].set_ylabel("loop a")
         axs[1,0].set_ylabel("loop b")
+
+        fig.suptitle(self.shot)
 
     def to_dict(self, detail_level='summary', N_points=10000):
 
