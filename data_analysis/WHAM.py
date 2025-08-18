@@ -64,7 +64,8 @@ class WHAM:
             'bdot' : Bdot,
             'bolometer': Bolometer,
             'dalpha': Dalpha,
-            'oes': Spectrometer
+            'oes': Spectrometer,
+            'endring' : EndRing
         }
 
         # Dictionary of diagnostic classes to instantiate

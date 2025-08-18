@@ -11,7 +11,8 @@ import numpy as np
 
 
 day = 250220000
-for s in np.arange(118): #118
+for s in np.arange(100,110):
+    #for s in np.arange(118): #118
     shot = day + s
     wham = WHAM(shot, load_list=['interferometer'])
     #wham = WHAM(shot, load_list=['bias', 'flux'])

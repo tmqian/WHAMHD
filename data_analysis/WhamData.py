@@ -1818,6 +1818,59 @@ class EndRing(WhamDiagnostic):
 
         return fig,axs, ax0
 
+    def to_dict(self, detail_level='summary', N_points=10000):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+            summary = {}
+            try:
+                # get voltage at t=5 ms
+                t1,t2 = get_time_array(self.time, [4.9, 5.1])
+                V = np.mean(self.ProbeArr[:,t1:t2], axis=1)
+                summary['Ring float (t=5) (V)'] = V
+            except:
+                result['is_loaded'] = False
+            result['summary'] = summary
+
+        if detail_level == 'compressed':
+            # save the 10 end ring voltages, and 2 bias voltages
+            # also save the 2 bias currents
+
+            data = {}
+            try:
+                '''
+                N_points: output size. 
+                N_block: raw points per output
+                trim: cuts the round off from blocking
+                '''
+                N_block = len(self.time) // N_points
+                trim = N_points * N_block
+                
+                data['time'] = self.time[:trim].reshape(-1, N_block).mean(axis=1)
+                #data['time']   = self.time[::N_block][:N_points] # decimated time
+
+
+                # use bottom radii for rings 1-9, and middle for disk 0
+                data['radii'] = self.radii
+
+                def compress(tag, trace):
+                    data[f'{tag}_smoothed']  = trace[:trim].reshape(-1, N_block).mean(axis=1)
+                    #data[f'{tag}_decimated'] = trace[::N_block][:N_points]
+
+                for j in range(10):
+                    compress(f'V_ring_{j:02d}', self.ProbeArr[j])
+
+            except:
+                print("Issue with bias data compression", self.shot)
+                result['is_loaded'] = False
+
+            result['compressed'] = data
+
+        return result
 
 class Dalpha(WhamDiagnostic):
 
