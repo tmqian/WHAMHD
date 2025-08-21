@@ -961,6 +961,72 @@ class AXUV(WhamDiagnostic):
         fig.suptitle(self.shot)
 
 
+    def to_dict(self, detail_level='summary', N_points=500):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+
+            try:
+                # summary: get a single time radial distribution
+                t1,t2 = get_time_array(self.time, [4.7, 4.9])
+                summary['chord radius (m)'] = self.b
+                summary['axuv t=4.8 ms'] = self.data[:,t1:t2].mean(axis=1)
+
+            except:
+                result['is_loaded'] = False
+
+            result['summary'] = summary
+
+        # Store data time series
+        if detail_level == 'full':
+
+            # full: save all times for 20 chords
+            data = {}
+            try:
+                data['time']   = self.time
+                data['radius'] = self.b
+                data['data'] = self.data
+            except:
+                print("Issue with axuv data", self.shot)
+                result['is_loaded'] = False
+
+            result['data'] = data
+
+        if detail_level == 'compressed':
+
+            # compressed: save decimated/smoothed times for 20 chords
+            data = {}
+            try:
+                '''
+                N_points: output size. 
+                N_block: raw points per output
+                trim: cuts the round off from blocking
+                '''
+                N_block = len(self.time) // N_points
+                trim = N_points * N_block
+                
+                data['radius'] = self.b
+                data['time'] = self.time[:trim].reshape(-1, N_block).mean(axis=1)
+                #data['time']   = self.time[::N_block][:N_points] # decimated time
+
+                data['axuv_smoothed'] = self.data[:,:trim].reshape(20, N_points, N_block).mean(axis=2) 
+                data['axuv_decimated'] = self.data[:,:trim][:,::N_block][:,:N_points]
+
+
+            except:
+                print("Issue with axuv data compression", self.shot)
+                result['is_loaded'] = False
+
+            result['compressed'] = data
+
+        return result
+
 class ECH(WhamDiagnostic):
 
     def __init__(self, shot,
