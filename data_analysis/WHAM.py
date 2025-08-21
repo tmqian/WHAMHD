@@ -144,7 +144,7 @@ class WHAM:
         for name in self.diagnostic_classes.keys():
             diag = getattr(self, name)
             result["is_loaded"][name] = diag.is_loaded
-    
+
             if detail_level in ('summary', 'full', 'compressed'):
                 result["summary"][name] = diag.to_dict('summary')['summary']
     

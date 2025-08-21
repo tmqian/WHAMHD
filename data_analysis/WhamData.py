@@ -185,13 +185,13 @@ class BiasPPS(WhamDiagnostic):
             shot_labview_demand = 250301000,
              ):
 
-
         if self.no_dtacq:
             self.load_labview_demand()
             return
 
         # set up tree
         tree = self.tree
+
 
         # load data from nodes
         L_Dem = tree.getNode(f"bias.PPS_L.demand.filtered").getData().data()
@@ -415,7 +415,7 @@ class BiasPPS(WhamDiagnostic):
 
         fig.tight_layout()
 
-    def to_dict(self, detail_level='summary', N_points=10000):
+    def to_dict(self, detail_level='summary', N_points=1000):
 
         # Always include status information
         result = {
@@ -568,7 +568,7 @@ class Interferometer(WhamDiagnostic):
         skip = np.abs(beg-end) > 1e18
         return skip
 
-    def to_dict(self, detail_level='summary', N_points=10000):
+    def to_dict(self, detail_level='summary', N_points=1000):
         '''
         N_points: for decimation, save N total points in time, equally spaced
         '''
@@ -807,7 +807,7 @@ class FluxLoop(WhamDiagnostic):
 
         fig.suptitle(self.shot)
 
-    def to_dict(self, detail_level='summary', N_points=10000):
+    def to_dict(self, detail_level='summary', N_points=1000):
 
         # Always include status information
         result = {
@@ -961,7 +961,7 @@ class AXUV(WhamDiagnostic):
         fig.suptitle(self.shot)
 
 
-    def to_dict(self, detail_level='summary', N_points=500):
+    def to_dict(self, detail_level='summary', N_points=1000):
 
         # Always include status information
         result = {
@@ -1081,7 +1081,7 @@ class ECH(WhamDiagnostic):
 
         plt.show()
 
-    def to_dict(self, detail_level='summary', N_points=10000):
+    def to_dict(self, detail_level='summary', N_points=500):
 
         # Always include status information
         result = {
@@ -1276,7 +1276,7 @@ class NBI(WhamDiagnostic):
         self.t_start = time[exceeds[0]]
         self.t_stop = time[exceeds[-1]]
 
-    def to_dict(self, detail_level='summary'):
+    def to_dict(self, detail_level='summary', N_points=500):
 
         # Always include status information
         result = {
@@ -1314,6 +1314,38 @@ class NBI(WhamDiagnostic):
 
                 result['is_loaded'] = False
             result['summary'] = summary
+
+        if detail_level == 'compressed':
+            data = {}
+            try:
+                '''
+                N_points: output size. 
+                N_block: raw points per output
+                trim: cuts the round off from blocking
+                '''
+
+                N_block = len(self.time) // N_points
+                trim = N_points * N_block
+                
+                data['time'] = self.time[:trim].reshape(-1, N_block).mean(axis=1)
+                #data['time']   = self.time[::N_block][:N_points] # decimated time
+
+                def compress(tag, trace):
+                    #    data[f'{tag}_smoothed']  = trace[:trim].reshape(-1, N_block).mean(axis=1)
+                    data[f'{tag}_decimated'] = trace[::N_block][:N_points]
+
+                I = self.I_Beam
+                V = self.V_Beam
+                compress('V_NBI', V)
+                compress('I_NBI', I)
+                compress('P_NBI', I*V)
+
+            except:
+                print("Issue with NBI data compression", self.shot)
+                result['is_loaded'] = False
+
+            result['compressed'] = data
+
         return result
 
 class Radiation(WhamDiagnostic):
@@ -1893,7 +1925,7 @@ class EndRing(WhamDiagnostic):
 
         return fig,axs, ax0
 
-    def to_dict(self, detail_level='summary', N_points=10000):
+    def to_dict(self, detail_level='summary', N_points=1000):
 
         # Always include status information
         result = {
