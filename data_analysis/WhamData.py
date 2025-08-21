@@ -1687,11 +1687,20 @@ class EndRing(WhamDiagnostic):
             time = tree.getNode(f"{source}.N0.voltage.signal").dim_of().data() * 1e3 # ms
 
         else:
-            # for old shots, circa 2409
+            # for old shots
             source = "raw.acq196_370"
-            # get source nodes, these are uploaded by the DTACQ
-            idx = np.arange(20,30)[::-1] + 1 # channels 21-30
-            dtacq_arr = [ tree.getNode(f"{source}.ch_{j+1:02d}") for j in idx ]
+
+           # get source nodes, these are uploaded by the DTACQ
+            if self.shot > 241203000:
+                # this works for 1223
+                idx = np.arange(20,30) + 1 # channels 21-30
+                dtacq_arr = [ tree.getNode(f"{source}.ch_{j:02d}") for j in idx ]
+            else:
+                # this works for 0924
+                idx = np.arange(20,30)[::-1] + 1 
+                # its actually channel 31 to 22 in reverse order
+                dtacq_arr = [ tree.getNode(f"{source}.ch_{j+1:02d}") for j in idx ]
+
             t_delay = tree.getNode(f"{source}.trig_time").getData().data()
             dtacq_time = dtacq_arr[0].getData().dim_of().data()
             time = (dtacq_time + t_delay) * 1e3
