@@ -185,6 +185,13 @@ class BiasPPS(WhamDiagnostic):
             shot_labview_demand = 250301000,
              ):
 
+        try:
+            # detect if dtacq failed
+            L_Dem = tree.getNode(f"bias.PPS_L.demand.filtered").getData().data()
+        except:
+            #print("detected potential issue with bias dtacq, attempting to load labview demand")
+            self.no_dtacq = True
+        
         if self.no_dtacq:
             self.load_labview_demand()
             return
@@ -359,8 +366,11 @@ class BiasPPS(WhamDiagnostic):
             self.Ldem_V = tree.getNode("bias.bias_params.dmd_waveform.pps_L_V").getData().data()
             self.Rdem_T = tree.getNode("bias.bias_params.dmd_waveform.pps_R_T").getData().data() + tbias*1e3
             self.Rdem_V = tree.getNode("bias.bias_params.dmd_waveform.pps_R_V").getData().data()
+
+            self.labview_demand = True
         except:
             print("labview demand not found", self.shot)
+            self.labview_demand = False
 
     def plot_raw(self):
         fig, axs = plt.subplots(2,1,figsize=(8,5), sharex=True)
@@ -422,6 +432,14 @@ class BiasPPS(WhamDiagnostic):
             "is_loaded": self.is_loaded,
         }
 
+        if self.no_dtacq and self.labview_demand:
+            t_axis = np.linspace(-5,35, N_points)
+            self.R_VLem = np.interp(t_axis, self.Rdem_T, self.Rdem_V)
+            self.L_VLem = np.interp(t_axis, self.Ldem_T, self.Ldem_V)
+            self.R_ILem = np.zeros_like(t_axis)
+            self.L_ILem = np.zeros_like(t_axis)
+            self.time = t_axis
+
         # Store single number metrics
         if detail_level == 'summary':
             summary = {}
@@ -442,10 +460,12 @@ class BiasPPS(WhamDiagnostic):
                 #Vlim = np.max(self.Ldem_V) # this is bad, if Vlim<0 or Vring>0, it will give the wrong answer
                 #Vring = np.min(self.Rdem_V)
 
-                summary['limiter_bias'] = V_lim
-                summary['ring_bias'] = V_ring
-                summary['limiter_current'] = V_lim
-                summary['ring_current'] = I_ring
+                summary['limiter_bias'] = V_Lim
+                summary['ring_bias'] = V_Ring
+                summary['limiter_current'] = V_Lim
+                summary['ring_current'] = I_Ring
+
+                summary['dtacq_failed'] = self.no_dtacq
             except:
                 summary['limiter_bias'] = 0
                 summary['ring_bias'] = 0
@@ -453,6 +473,7 @@ class BiasPPS(WhamDiagnostic):
                 summary['ring_current'] = 0
 
                 result['is_loaded'] = False
+
 
             result['summary'] = summary
 
