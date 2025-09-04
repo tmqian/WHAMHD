@@ -185,6 +185,9 @@ class BiasPPS(WhamDiagnostic):
             shot_labview_demand = 250301000,
              ):
 
+        # set up tree
+        tree = self.tree
+
         try:
             # detect if dtacq failed
             L_Dem = tree.getNode(f"bias.PPS_L.demand.filtered").getData().data()
@@ -196,8 +199,6 @@ class BiasPPS(WhamDiagnostic):
             self.load_labview_demand()
             return
 
-        # set up tree
-        tree = self.tree
 
 
         # load data from nodes
@@ -259,6 +260,8 @@ class BiasPPS(WhamDiagnostic):
         # load labview demand
         if self.shot > shot_labview_demand:
             self.load_labview_demand()
+        else:
+            self.labview_demand = False
 
     def load_raw(self):
         '''
@@ -432,19 +435,27 @@ class BiasPPS(WhamDiagnostic):
             "is_loaded": self.is_loaded,
         }
 
-        if self.no_dtacq and self.labview_demand:
-            t_axis = np.linspace(-5,35, N_points)
-            self.R_VLem = np.interp(t_axis, self.Rdem_T, self.Rdem_V)
-            self.L_VLem = np.interp(t_axis, self.Ldem_T, self.Ldem_V)
-            self.R_ILem = np.zeros_like(t_axis)
-            self.L_ILem = np.zeros_like(t_axis)
-            self.time = t_axis
+        # convert LabView demand to time trace
+        if self.labview_demand:
+            t_VDem = np.linspace(-5,35, N_points)
+            R_VDem = np.interp(t_VDem, self.Rdem_T, self.Rdem_V)
+            L_VDem = np.interp(t_VDem, self.Ldem_T, self.Ldem_V)
+    
+            if self.no_dtacq:
+                # if dtacq failed, provided LV demand exists, overwrite missing voltage waveform with LV demand
+                self.R_VLem = R_VDem
+                self.L_VLem = L_VDem
+                self.R_ILem = np.zeros_like(t_VDem)
+                self.L_ILem = np.zeros_like(t_VDem)
+                self.time = t_VDem
 
         # Store single number metrics
         if detail_level == 'summary':
             summary = {}
 
             try:
+                summary['dtacq_failed'] = self.no_dtacq
+
                 '''
                 the code used to read the demand voltage.
                 but the demand is not an accurate representation of output for older shots (there is a cap bank dependent charge conversion)
@@ -465,7 +476,6 @@ class BiasPPS(WhamDiagnostic):
                 summary['limiter_current'] = V_Lim
                 summary['ring_current'] = I_Ring
 
-                summary['dtacq_failed'] = self.no_dtacq
             except:
                 summary['limiter_bias'] = 0
                 summary['ring_bias'] = 0
@@ -498,6 +508,7 @@ class BiasPPS(WhamDiagnostic):
 
             data = {}
             try:
+                data['dtacq_failed'] = self.no_dtacq
                 '''
                 N_points: output size. 
                 N_block: raw points per output
@@ -518,6 +529,14 @@ class BiasPPS(WhamDiagnostic):
                 compress('I_ring', self.R_ILem)
                 compress('I_lim', self.L_ILem)
 
+                if self.labview_demand:
+                    data['Vdem_R'] = R_VDem
+                    data['Vdem_L'] = L_VDem
+                    data['Vdem_t'] = t_VDem
+                else:
+                    data['Vdem_R'] = np.zeros(N_points)
+                    data['Vdem_L'] = np.zeros(N_points) 
+                    data['Vdem_t'] = np.zeros(N_points)
 
             except:
                 print("Issue with bias data compression", self.shot)
@@ -1773,6 +1792,20 @@ class ShineThrough(WhamDiagnostic):
 
                 result['is_loaded'] = False
             result['summary'] = summary
+
+        if detail_level == 'compressed':
+            # don't need compression, because shine foward model is already compressed
+            data = {}
+
+            try:
+                data['nt'] = self.nt
+                data['nr'] = self.nr
+                data['time'] = self.time
+                data['radius'] = self.radius
+            except:
+                print("Issue with shine through compression", self.shot)
+
+            result['compressed'] = data
         return result
 
 class IonProbe(WhamDiagnostic):
