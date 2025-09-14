@@ -79,6 +79,30 @@ class WhamDiagnostic:
             
         return result
 
+    def init_compress(self, data, time, N_points=1000):
+
+        '''
+        N_points: output size. 
+        N_block: raw points per output
+        trim: cuts the round off from blocking
+        '''
+        N_block = len(time) // N_points
+        trim = N_points * N_block
+        
+        data['time'] = time[:trim].reshape(-1, N_block).mean(axis=1)
+        #data['time']   = time[::N_block][:N_points] # decimated time
+
+        self.trim = trim
+        self.N_block = N_block
+        self.N_points = N_points
+
+    def compress(self, data, arr, tag):
+        trim = self.trim 
+        N_block = self.N_block 
+        N_points = self.N_points 
+
+        data[f'{tag}_smoothed']  = arr[:trim].reshape(-1, N_block).mean(axis=1)
+        data[f'{tag}_decimated'] = arr[::N_block][:N_points]
 
 # Helper Functions
 def zero_offset(f,idx=2000):
@@ -847,6 +871,38 @@ class FluxLoop(WhamDiagnostic):
 
         fig.suptitle(self.shot)
 
+        # new plot of integrals (TQ + SM 9/12/2025)
+        fig2, axs2 = plt.subplots(4,3, figsize=(11,7), sharex=True)
+        from scipy.integrate import cumulative_trapezoid as trap
+        cumi = lambda y : trap(y[::N] - np.mean(y[-10000:]), x=self.time[::M], initial=0)
+        axs2[0,0].plot(self.time[::M], cumi(sig1a), lw=0.7, label=f"{self.shot}", alpha=alpha)
+        axs2[1,0].plot(self.time[::M], cumi(sig1b), lw=0.7, alpha=alpha)
+        axs2[0,1].plot(self.time[::M], cumi(sig2a), lw=0.7, alpha=alpha)
+        axs2[1,1].plot(self.time[::M], cumi(sig2b), lw=0.7, alpha=alpha)
+        axs2[0,2].plot(self.time[::M], cumi(sig3a), lw=0.7, alpha=alpha)
+        axs2[1,2].plot(self.time[::M], cumi(sig3b), lw=0.7, alpha=alpha)
+        axs2[0,0].axvline(self.time[-10000])
+        axs2[0,0].set_title("Flux Loop 1")
+        axs2[0,1].set_title("Flux Loop 2")
+        axs2[0,2].set_title("Flux Loop 3")
+        axs2[0,0].set_ylabel("loop a")
+        axs2[1,0].set_ylabel("loop b")
+        axs2[2,0].set_ylabel("a-b")
+        axs2[3,0].set_ylabel("a+b")
+        axs2[2,0].plot(self.time[::M], cumi(sig1a -sig1b), lw=0.7,  alpha=alpha)
+        axs2[2,1].plot(self.time[::M], cumi(sig2a -sig2b), lw=0.7,  alpha=alpha)
+        axs2[2,2].plot(self.time[::M], cumi(sig3a -sig3b), lw=0.7,  alpha=alpha)
+        axs2[3,0].plot(self.time[::M], cumi(sig1a +sig1b), lw=0.7,  alpha=alpha)
+        axs2[3,1].plot(self.time[::M], cumi(sig2a +sig2b), lw=0.7,  alpha=alpha)
+        axs2[3,2].plot(self.time[::M], cumi(sig3a +sig3b), lw=0.7,  alpha=alpha)
+        fig2.suptitle(self.shot)
+        #axs2[2,0].plot(self.time[::M], cumi(sig1a) -cumi(sig1b), lw=0.7,  alpha=alpha)
+        #axs2[2,1].plot(self.time[::M], cumi(sig2a) -cumi(sig2b), lw=0.7,  alpha=alpha)
+        #axs2[2,2].plot(self.time[::M], cumi(sig3a) -cumi(sig3b), lw=0.7,  alpha=alpha)
+        #axs2[3,0].plot(self.time[::M], cumi(sig1a) +cumi(sig1b), lw=0.7,  alpha=alpha)
+        #axs2[3,1].plot(self.time[::M], cumi(sig2a) +cumi(sig2b), lw=0.7,  alpha=alpha)
+        #axs2[3,2].plot(self.time[::M], cumi(sig3a) +cumi(sig3b), lw=0.7,  alpha=alpha)
+
     def to_dict(self, detail_level='summary', N_points=1000):
 
         # Always include status information
@@ -1279,7 +1335,10 @@ class NBI(WhamDiagnostic):
         d10 = tree.getNode(f"{path}.detector_10").getData().data() 
 
         self.d_arr = np.delete(d_arr, 5, axis=0) 
-        self.chord_radius = tree.getNode(f"{path}.linedens.detector_pos").getData().data() * 100 # cm
+
+        if self.shot > 241201000:
+            # unavailable for 240928
+            self.chord_radius = tree.getNode(f"{path}.linedens.detector_pos").getData().data() * 100 # cm
 
         self.d2 = d2
         self.d5 = d5
@@ -1306,15 +1365,15 @@ class NBI(WhamDiagnostic):
 
         self.sigma_cx = xsec(V_Beam)
 
+        # get beam start and stop time
         exceeds = [i for i, val in enumerate(P_Beam) if val > 5]
-
-        if not exceeds:
+        if len(exceeds) > 0:
+            self.t_start = time[exceeds[0]]
+            self.t_stop = time[exceeds[-1]]
+        else:
             self.t_start = None
             self.t_stop = None
 
-        # get beam start and stop time
-        self.t_start = time[exceeds[0]]
-        self.t_stop = time[exceeds[-1]]
 
     def to_dict(self, detail_level='summary', N_points=500):
 
@@ -1513,8 +1572,7 @@ class Bolometer(WhamDiagnostic):
         surface = np.pi*vessel_D*vessel_L #cm2
         E = Q*surface / 1e6 # kJ
 
-        zax = [-50, -30, -10, 10, 30, 50]
-        axs.plot(zax,Q*10,'o-',label=f"{self.E_total/1e3:.2f} kJ")
+        axs.plot(self.z, Q*10,'o-',label=f"{self.E_total/1e3:.2f} kJ")
         #axs.plot(zax,Q,'o-',label=f"{np.sum(E):.1f} kJ")
         #axs.set_ylabel("Fast Neutral Flux [mJ/cm2]")
         axs.set_ylabel("Fast Neutral Flux [J/m2]")
@@ -1578,6 +1636,33 @@ class Bolometer(WhamDiagnostic):
         fig.suptitle(self.shot)
         plt.show()
 
+    def to_dict(self, detail_level='summary'):
+
+        # Always include status information
+        result = {
+            "is_loaded": self.is_loaded,
+        }
+
+        if detail_level == 'summary':
+
+            summary = {}
+            try:
+                summary['z (m)'] = self.z
+                summary['Q (J/m2)'] = self.Q * 10
+                summary['E total (kJ)'] = self.E_total/1e3
+
+            except:
+                summary['z (m)'] = self.z
+                summary['Q (J/m2)'] = np.zeros_like(self.z)
+                summary['E total (kJ)'] = 0
+
+            result['summary'] = summary
+
+        elif detail_level == 'compressed':
+            result['compressed'] = {} # no time trace
+
+        return result
+
 class adhocGas(WhamDiagnostic):
     # temp for week of 25-0220
     def __init__(self, shot):
@@ -1638,13 +1723,16 @@ class Gas(WhamDiagnostic):
         gasDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
         mainDmd = tree.getNode("fueling.cmd_wvfrms.main").getData().data() 
         baffleDmd = tree.getNode("fueling.cmd_wvfrms.baffle").getData().data() 
-        necDmd = tree.getNode("fueling.cmd_wvfrms.nec").getData().data() 
-        secDmd = tree.getNode("fueling.cmd_wvfrms.sec").getData().data() 
-        secondaryDmd = tree.getNode("fueling.cmd_wvfrms.secondary").getData().data() 
+
+        if self.shot > 241201000:
+            # not available for 240928
+            necDmd = tree.getNode("fueling.cmd_wvfrms.nec").getData().data() 
+            secDmd = tree.getNode("fueling.cmd_wvfrms.sec").getData().data() 
+            secondaryDmd = tree.getNode("fueling.cmd_wvfrms.secondary").getData().data() 
+            t_nec = tree.getNode("fueling.cmd_wvfrms.nec").dim_of().data() 
 
         gasDmd = mainDmd
         t_puff = tree.getNode("fueling.cmd_wvfrms.main").dim_of().data()
-        t_nec = tree.getNode("fueling.cmd_wvfrms.nec").dim_of().data() 
 
         try:
             asdex1 = tree.getNode("fueling.oscar_gauge.x10.signal").getData().data()
@@ -1652,8 +1740,8 @@ class Gas(WhamDiagnostic):
             t_asdex = tree.getNode("fueling.oscar_gauge.x1.signal").dim_of().data()
         except:
             print("oscar gauge not found, trying asdex gauge")
-            asdex1 = tree.getNode("fueling.oscar_gauge.10x.signal").getData().data()
-            asdex2 = tree.getNode("fueling.oscar_gauge.1x.signal").getData().data()
+            asdex1 = tree.getNode("fueling.asdex_gauge.10x.signal").getData().data()
+            asdex2 = tree.getNode("fueling.asdex_gauge.1x.signal").getData().data()
             t_asdex = tree.getNode("fueling.asdex_gauge.1x.signal").dim_of().data()
 
         trig = tree.getNode("raw.diag_rp_01.trig_time").getData().data()
@@ -1725,6 +1813,19 @@ class Gas(WhamDiagnostic):
                 result['is_loaded'] = False
 
             result['summary'] = summary
+
+        elif detail_level == 'compressed':
+
+            data = {}
+            try: 
+                self.init_compress(data, self.t_asdex)
+                self.compress(data, self.asdex_hi, 'asdex_hi (torr)')
+                self.compress(data, self.asdex_lo, 'asdex_lo (torr)')
+            except:
+                print("issue compressing gas data")
+                result['is_loaded'] = False
+
+            result['compressed'] = data
         return result
 
 class ShineThrough(WhamDiagnostic):
@@ -2020,7 +2121,7 @@ class EndRing(WhamDiagnostic):
 
                 def compress(tag, trace):
                     data[f'{tag}_smoothed']  = trace[:trim].reshape(-1, N_block).mean(axis=1)
-                    #data[f'{tag}_decimated'] = trace[::N_block][:N_points]
+                    data[f'{tag}_decimated'] = trace[::N_block][:N_points]
 
                 for j in range(10):
                     compress(f'V_ring_{j:02d}', self.ProbeArr[j])

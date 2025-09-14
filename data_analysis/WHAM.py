@@ -131,7 +131,7 @@ class WHAM:
             "shot": self.shot,
             "is_loaded": {},
         }
-    
+
         if detail_level in ('summary', 'full', 'compressed'):
             result["summary"] = {}
     
